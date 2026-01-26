@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ShoppingCart, Zap, Shield, Phone, MessageCircle, X, Check, 
-  Loader2, ChevronRight, User, Facebook, Instagram, Camera, FileText, Menu 
+  ShoppingCart, Zap, Phone, X, Check, Loader2, FileText, Menu 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { db, storage } from '../firebaseConfig'; 
+// REMOVED: storage imports since we aren't using images anymore
+import { db } from '../firebaseConfig'; 
 import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const Toast = ({ message, type }) => (
   <motion.div 
@@ -30,10 +29,11 @@ export default function Shop() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [toast, setToast] = useState(null);
   const [lastOrder, setLastOrder] = useState(null);
-  const [proofType, setProofType] = useState('ref');
+  
+  // REMOVED: proofType and proofImage state
   const [refNumber, setRefNumber] = useState('');
-  const [proofImage, setProofImage] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  
   const [isValidatingID, setIsValidatingID] = useState(false);
   const [idVerified, setIdVerified] = useState(false);
 
@@ -58,7 +58,19 @@ export default function Shop() {
     { id: 17, total: 10142, base: 9220, bonus: 922, price: 382400, tag: "BEST VALUE" },
   ];
 
-  useEffect(() => { const saved = localStorage.getItem('ff_cart'); if (saved) setCart(JSON.parse(saved)); }, []);
+  // Load Cart & Pending Order (Fixes the Mobile Refresh issue)
+  useEffect(() => { 
+    const saved = localStorage.getItem('ff_cart'); 
+    if (saved) setCart(JSON.parse(saved)); 
+    
+    // Check if user was in the middle of a payment
+    const savedOrder = localStorage.getItem('ff_pending_order');
+    if (savedOrder) {
+      setLastOrder(JSON.parse(savedOrder));
+      setView('payment');
+    }
+  }, []);
+
   useEffect(() => { localStorage.setItem('ff_cart', JSON.stringify(cart)); }, [cart]);
   
   const addToCart = (pkg) => {
@@ -90,29 +102,33 @@ export default function Shop() {
         ...formData, items: cart, totalDiamonds: totals.diamonds, totalPrice: totals.price, status: 'awaiting_proof', createdAt: serverTimestamp()
       };
       const docRef = await addDoc(collection(db, "orders"), orderData);
-      setLastOrder({ id: docRef.id, ...orderData });
+      
+      const fullOrder = { id: docRef.id, ...orderData };
+      setLastOrder(fullOrder);
+      // SAVE ORDER TO MEMORY (Solves the "phone refresh" bug)
+      localStorage.setItem('ff_pending_order', JSON.stringify(fullOrder));
+      
       setCart([]); setIsCartOpen(false); setView('payment');
     } catch (error) { setToast({ message: "Network Error", type: "error" }); } finally { setIsProcessing(false); }
   };
 
   const handleSubmitProof = async () => {
-    if (proofType === 'ref' && !refNumber) return setToast({message: "Enter Reference", type: 'error'});
-    if (proofType === 'image' && !proofImage) return setToast({message: "Select Image", type: 'error'});
+    if (!refNumber) return setToast({message: "Enter Reference", type: 'error'});
 
     setIsUploading(true);
     try {
-      let proofData = {};
-      if (proofType === 'ref') {
-        proofData = { proofType: 'ref', proofValue: refNumber };
-      } else {
-        const imageRef = ref(storage, `proofs/${lastOrder.id}_${proofImage.name}`);
-        const snapshot = await uploadBytes(imageRef, proofImage);
-        const downloadURL = await getDownloadURL(snapshot.ref);
-        proofData = { proofType: 'image', proofValue: downloadURL };
-      }
-      await updateDoc(doc(db, "orders", lastOrder.id), { ...proofData, status: 'pending_review' });
+      // We only update the reference number now (No images)
+      await updateDoc(doc(db, "orders", lastOrder.id), { 
+        proofType: 'ref', 
+        proofValue: refNumber, 
+        status: 'pending_review' 
+      });
+      
+      // Clear memory so they can make a new order next time
+      localStorage.removeItem('ff_pending_order');
+      
       setView('finish');
-    } catch (error) { setToast({ message: "Upload failed", type: "error" }); } finally { setIsUploading(false); }
+    } catch (error) { setToast({ message: "Update failed", type: "error" }); } finally { setIsUploading(false); }
   };
 
   // --- VIEWS ---
@@ -129,33 +145,44 @@ export default function Shop() {
           </div>
           <div className="p-6">
             <div className="text-center mb-6">
-              <p className="text-gray-500 text-xs uppercase tracking-wide">Amount Due</p>
+              <p className="text-gray-500 text-xs uppercase tracking-wide">VOLA ALEFA</p>
               <p className="text-3xl font-black text-gray-900">{lastOrder.totalPrice.toLocaleString()} Ar</p>
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mt-4">
-                 <p className="text-sm text-gray-600">Send to {lastOrder.paymentMethod === 'mvola' ? 'MVola' : 'Orange Money'}:</p>
+                 <p className="text-sm text-gray-600"> {lastOrder.paymentMethod === 'mvola' ? 'MVola' : 'Orange Money'}:</p>
                  <p className="text-2xl font-black text-orange-600 tracking-wider mt-1">{payNumber}</p>
-                 <p className="text-xs text-gray-400 mt-1">Name: CLICK DIAMS</p>
+                 <p className="text-xs text-gray-400 mt-1"><strong> <u> Anarana: FANILONIAINA CHRISTIAN </u></strong></p>
               </div>
             </div>
-
-            <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
-              <button onClick={() => setProofType('ref')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${proofType === 'ref' ? 'bg-white shadow text-blue-900' : 'text-gray-400'}`}>Reference ID</button>
-              <button onClick={() => setProofType('image')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${proofType === 'image' ? 'bg-white shadow text-blue-900' : 'text-gray-400'}`}>Screenshot</button>
+            <div className="mt-4 text-sm font-semibold text-red-600">
+              ⚠️ <span className="uppercase">Zava-dehibe:</span>{" "}
+              tandremo diso ilay numéro fa tsy miantoka ny fahadisoanao izahay,
+              mankasitraka tompoko.
             </div>
-
             <div className="mb-6">
-              {proofType === 'ref' ? (
-                <input type="text" placeholder="e.g. 230515123456" className="w-full p-3 border rounded-xl bg-gray-50 font-mono text-center tracking-widest" value={refNumber} onChange={(e) => setRefNumber(e.target.value)} />
-              ) : (
-                <label className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50">
-                   {proofImage ? <span className="text-green-600 font-bold flex items-center gap-2"><Check size={16}/> {proofImage.name}</span> : <><Camera className="text-gray-400 mb-2"/><span className="text-xs text-gray-500">Upload Proof</span></>}
-                   <input type="file" accept="image/*" className="hidden" onChange={(e) => setProofImage(e.target.files[0])} />
-                </label>
-              )}
+               <label className="text-sm font-bold text-gray-700 mb-2 block">Transaction Reference</label>
+               <p className="text-xs text-gray-500 mb-2">Apetrao eo ambany ny Reference de trans. (oh: ref: 230515...)</p>
+               <div className="relative">
+                 <FileText className="absolute left-3 top-3 text-gray-400" size={20}/>
+                 <input 
+                   type="text" 
+                   placeholder="Enter Reference Number" 
+                   className="w-full pl-10 p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono tracking-widest bg-gray-50"
+                   value={refNumber}
+                   onChange={(e) => setRefNumber(e.target.value)}
+                 />
+               </div>
             </div>
 
             <button onClick={handleSubmitProof} disabled={isUploading} className="w-full bg-blue-900 text-white py-4 rounded-xl font-bold flex justify-center items-center gap-2">
               {isUploading ? <Loader2 className="animate-spin" /> : "Verify Payment"}
+            </button>
+            
+            <button onClick={() => {
+                // If they want to cancel, clear the saved order
+                localStorage.removeItem('ff_pending_order');
+                setView('home');
+              }} className="w-full text-gray-400 text-sm mt-4 hover:text-gray-600">
+              Cancel Order
             </button>
           </div>
         </div>
@@ -168,7 +195,7 @@ export default function Shop() {
       <motion.div initial={{scale:0.5}} animate={{scale:1}} className="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full">
         <Check size={60} className="text-green-500 mx-auto mb-4 bg-green-100 rounded-full p-3"/>
         <h2 className="text-2xl font-black text-gray-900">Payment Sent!</h2>
-        <p className="text-gray-500 mb-6 mt-2">We are verifying your transaction. Diamonds will be sent shortly.</p>
+        <p className="text-gray-500 mb-6 mt-2">We are verifying your transaction ID. Diamonds will be sent shortly.</p>
         <button onClick={()=>{setView('home');setCart([])}} className="w-full bg-gray-100 text-gray-900 py-3 rounded-xl font-bold">Back to Shop</button>
       </motion.div>
     </div>
@@ -196,8 +223,8 @@ export default function Shop() {
       </nav>
 
       {/* HERO */}
-      <div className="relative bg-gray-900 h-[400px] sm:h-[500px] overflow-hidden">
-        <div className="absolute inset-0 background-image opacity-40"></div>
+      <div className="relative bg-gray-900 h-[280px] sm:h-[350px] overflow-hidden">
+        <div className="absolute inset-0 bg-[url('https://wallpapers.com/images/hd/garena-free-fire-4k-gaming-poster-c12140882e364654.jpg')] bg-cover bg-center opacity-40"></div>
         <div className="absolute inset-0 bg-gradient-to-t from-slate-50 via-transparent to-transparent"></div>
         <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 to-transparent"></div>
         <div className="relative z-10 max-w-7xl mx-auto px-4 h-full flex items-center">
@@ -298,25 +325,14 @@ export default function Shop() {
                 <div className="p-5 border-t bg-white shadow-[0_-5px_20px_rgba(0,0,0,0.05)] space-y-4">
                   <div className="flex justify-between font-black text-xl text-gray-900"><span>Total</span><span>{totals.price.toLocaleString()} Ar</span></div>
                   <div className="space-y-3">
-                      {/* ID Input */}
                       <div className="relative">
                         <input placeholder="Player ID *" className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 ${idVerified?'bg-green-50 border-green-200':''}`} value={formData.playerID} onChange={e=>{setFormData({...formData,playerID:e.target.value});setIdVerified(false)}} />
                         <button onClick={verifyID} className="absolute right-2 top-2 text-xs font-bold bg-gray-100 px-3 py-1.5 rounded-lg hover:bg-gray-200">{isValidatingID?<Loader2 className="animate-spin" size={14}/>:idVerified?<Check size={14} className="text-green-600"/>:"CHECK"}</button>
                       </div>
-
-                      {/* --- NEW USERNAME INPUT --- */}
-                      <input 
-                        type="text" 
-                        placeholder="Username (Optional)" 
-                        className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" 
-                        value={formData.playerName} 
-                        onChange={e=>setFormData({...formData,playerName:e.target.value})} 
-                      />
                       
-                      {/* Phone Input */}
+                      <input type="text" placeholder="Username (Optional)" className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={formData.playerName} onChange={e=>setFormData({...formData,playerName:e.target.value})} />
+                      
                       <input type="tel" placeholder="Phone Number *" className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={formData.phone} onChange={e=>setFormData({...formData,phone:e.target.value})} />
-                      
-                      {/* Payment Selection */}
                       <div className="grid grid-cols-2 gap-3">
                         <button onClick={()=>setFormData({...formData,paymentMethod:'mvola'})} className={`p-3 rounded-xl border-2 font-bold text-sm ${formData.paymentMethod==='mvola'?'border-green-500 bg-green-50 text-green-800':'border-gray-200 text-gray-400'}`}>MVola</button>
                         <button onClick={()=>setFormData({...formData,paymentMethod:'orange'})} className={`p-3 rounded-xl border-2 font-bold text-sm ${formData.paymentMethod==='orange'?'border-orange-500 bg-orange-50 text-orange-800':'border-gray-200 text-gray-400'}`}>Orange</button>
