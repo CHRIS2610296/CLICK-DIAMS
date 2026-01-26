@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  LayoutDashboard, LogOut, Check, X, Loader2, Phone, Search 
+  LayoutDashboard, LogOut, Check, X, Loader2, Phone,
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig'; // Ensure path is correct
