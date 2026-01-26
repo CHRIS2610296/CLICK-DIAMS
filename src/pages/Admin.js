@@ -1,0 +1,194 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  LayoutDashboard, LogOut, Check, X, Loader2, Phone, Search 
+} from 'lucide-react';
+import { signOut } from 'firebase/auth';
+import { auth, db } from '../firebaseConfig'; // Ensure path is correct
+import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+
+export default function Admin() {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const audioRef = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
+  const isFirstLoad = useRef(true);
+
+  // Logout Handler
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error signing out", error);
+    }
+  };
+
+  // Real-time Data Listener
+  useEffect(() => {
+    const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const ordersData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Play sound if a new pending order arrives (skip on first page load)
+      if (!isFirstLoad.current) {
+        const newPending = ordersData.filter(o => o.status === 'pending').length;
+        const oldPending = orders.filter(o => o.status === 'pending').length;
+        if (newPending > oldPending) {
+          audioRef.current.play().catch(e => console.log("Audio blocked by browser"));
+        }
+      } else {
+        isFirstLoad.current = false;
+      }
+      
+      setOrders(ordersData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Status Updater
+  const updateStatus = async (orderId, newStatus) => {
+    if (!window.confirm(`Mark order as ${newStatus}?`)) return;
+    try {
+      const orderRef = doc(db, "orders", orderId);
+      await updateDoc(orderRef, { status: newStatus });
+    } catch (error) {
+      alert("Error updating order: " + error.message);
+    }
+  };
+
+  // Calculate Stats
+  const revenue = orders
+    .filter(o => o.status === 'completed')
+    .reduce((acc, curr) => acc + (curr.totalPrice || 0), 0);
+  
+  const pendingCount = orders.filter(o => o.status === 'pending').length;
+
+  return (
+    <div className="min-h-screen bg-slate-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm gap-4">
+          <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800">
+            <LayoutDashboard className="text-blue-600" /> 
+            Admin Panel
+          </h1>
+          <button 
+            onClick={handleLogout} 
+            className="flex items-center gap-2 text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg transition-colors border border-red-100 font-medium"
+          >
+            <LogOut size={18} /> Logout
+          </button>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500">
+            <div className="text-slate-500 font-medium">Pending Orders</div>
+            <div className="text-4xl font-bold text-slate-800">{pendingCount}</div>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500">
+            <div className="text-slate-500 font-medium">Total Revenue</div>
+            <div className="text-4xl font-bold text-slate-800">{revenue.toLocaleString()} Ar</div>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-gray-500">
+            <div className="text-slate-500 font-medium">Total Orders</div>
+            <div className="text-4xl font-bold text-slate-800">{orders.length}</div>
+          </div>
+        </div>
+
+        {/* Orders Table */}
+        {loading ? (
+          <div className="flex justify-center p-20">
+            <Loader2 className="animate-spin text-blue-500" size={48} />
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-gray-200">
+                  <tr>
+                    <th className="p-4 font-semibold text-slate-600">Date</th>
+                    <th className="p-4 font-semibold text-slate-600">Player Info</th>
+                    <th className="p-4 font-semibold text-slate-600">Package</th>
+                    <th className="p-4 font-semibold text-slate-600">Payment</th>
+                    <th className="p-4 font-semibold text-slate-600">Status</th>
+                    <th className="p-4 font-semibold text-slate-600">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {orders.map((order) => (
+                    <tr key={order.id} className={`hover:bg-gray-50 transition-colors ${order.status === 'pending' ? 'bg-blue-50/60' : ''}`}>
+                      <td className="p-4 text-sm text-slate-500 whitespace-nowrap">
+                        {order.createdAt?.seconds 
+                          ? new Date(order.createdAt.seconds * 1000).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) 
+                          : 'Just now'}
+                      </td>
+                      <td className="p-4">
+                        <div className="font-mono font-bold text-slate-800 bg-slate-100 inline-block px-2 rounded mb-1">
+                          ID: {order.playerID}
+                        </div>
+                        {order.playerName && <div className="text-xs text-slate-500">Name: {order.playerName}</div>}
+                        <a href={`tel:${order.phone}`} className="flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
+                          <Phone size={12}/> {order.phone}
+                        </a>
+                      </td>
+                      <td className="p-4">
+                        <div className="font-bold text-orange-600">{order.totalDiamonds} 💎</div>
+                        <div className="text-xs text-slate-500">{order.totalPrice.toLocaleString()} Ar</div>
+                      </td>
+                      <td className="p-4">
+                        <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
+                          order.paymentMethod === 'mvola' ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'
+                        }`}>
+                          {order.paymentMethod}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                         <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                          order.status === 'completed' ? 'bg-green-100 text-green-700' : 
+                          order.status === 'rejected' ? 'bg-red-100 text-red-700' : 
+                          'bg-blue-100 text-blue-700'
+                        }`}>
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        {order.status === 'pending' && (
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => updateStatus(order.id, 'completed')}
+                              className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg shadow-sm transition-all" 
+                              title="Approve"
+                            >
+                              <Check size={18} />
+                            </button>
+                            <button 
+                              onClick={() => updateStatus(order.id, 'rejected')}
+                              className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg shadow-sm transition-all" 
+                              title="Reject"
+                            >
+                              <X size={18} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {orders.length === 0 && (
+                    <tr>
+                      <td colSpan="6" className="p-8 text-center text-gray-400">No orders found.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
