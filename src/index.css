@@ -174,3 +174,8 @@ html {
 .delay-300 {
   animation-delay: 300ms;
 }
+.background-image {
+  background-image: url('./images/background.jpg');
+  background-size: 100% 100%;
+  background-position: center;
+}

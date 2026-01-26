@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  LayoutDashboard, LogOut, Check, X, Loader2, Phone,
+  LayoutDashboard, LogOut, Check, X, Loader2, Phone, FileText, Image as ImageIcon
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
-import { auth, db } from '../firebaseConfig'; // Ensure path is correct
+import { auth, db } from '../firebaseConfig'; 
 import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 
 export default function Admin() {
@@ -31,11 +31,11 @@ export default function Admin() {
         ...doc.data()
       }));
 
-      // Play sound if a new pending order arrives (skip on first page load)
+      // Play sound if a new pending_review order arrives (skip on first page load)
       if (!isFirstLoad.current) {
-        const newPending = ordersData.filter(o => o.status === 'pending').length;
-        const oldPending = orders.filter(o => o.status === 'pending').length;
-        if (newPending > oldPending) {
+        const newReview = ordersData.filter(o => o.status === 'pending_review').length;
+        const oldReview = orders.filter(o => o.status === 'pending_review').length;
+        if (newReview > oldReview) {
           audioRef.current.play().catch(e => console.log("Audio blocked by browser"));
         }
       } else {
@@ -47,7 +47,7 @@ export default function Admin() {
     });
 
     return () => unsubscribe();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); 
 
   // Status Updater
   const updateStatus = async (orderId, newStatus) => {
@@ -65,7 +65,7 @@ export default function Admin() {
     .filter(o => o.status === 'completed')
     .reduce((acc, curr) => acc + (curr.totalPrice || 0), 0);
   
-  const pendingCount = orders.filter(o => o.status === 'pending').length;
+  const pendingCount = orders.filter(o => o.status === 'pending_review' || o.status === 'awaiting_proof').length;
 
   return (
     <div className="min-h-screen bg-slate-100 p-6">
@@ -87,7 +87,7 @@ export default function Admin() {
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500">
-            <div className="text-slate-500 font-medium">Pending Orders</div>
+            <div className="text-slate-500 font-medium">Pending Review</div>
             <div className="text-4xl font-bold text-slate-800">{pendingCount}</div>
           </div>
           <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500">
@@ -113,15 +113,15 @@ export default function Admin() {
                   <tr>
                     <th className="p-4 font-semibold text-slate-600">Date</th>
                     <th className="p-4 font-semibold text-slate-600">Player Info</th>
-                    <th className="p-4 font-semibold text-slate-600">Package</th>
-                    <th className="p-4 font-semibold text-slate-600">Payment</th>
+                    <th className="p-4 font-semibold text-slate-600">Details</th>
+                    <th className="p-4 font-semibold text-slate-600">Proof</th>
                     <th className="p-4 font-semibold text-slate-600">Status</th>
                     <th className="p-4 font-semibold text-slate-600">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {orders.map((order) => (
-                    <tr key={order.id} className={`hover:bg-gray-50 transition-colors ${order.status === 'pending' ? 'bg-blue-50/60' : ''}`}>
+                    <tr key={order.id} className={`hover:bg-gray-50 transition-colors ${order.status === 'pending_review' ? 'bg-orange-50/60' : ''}`}>
                       <td className="p-4 text-sm text-slate-500 whitespace-nowrap">
                         {order.createdAt?.seconds 
                           ? new Date(order.createdAt.seconds * 1000).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) 
@@ -139,25 +139,43 @@ export default function Admin() {
                       <td className="p-4">
                         <div className="font-bold text-orange-600">{order.totalDiamonds} 💎</div>
                         <div className="text-xs text-slate-500">{order.totalPrice.toLocaleString()} Ar</div>
-                      </td>
-                      <td className="p-4">
-                        <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
+                        <span className={`text-[10px] font-bold px-1 py-0.5 rounded uppercase mt-1 inline-block ${
                           order.paymentMethod === 'mvola' ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'
                         }`}>
                           {order.paymentMethod}
                         </span>
                       </td>
                       <td className="p-4">
+                         {/* PROOF COLUMN LOGIC */}
+                         {order.proofType === 'image' ? (
+                            <a 
+                              href={order.proofValue} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="flex items-center gap-2 text-blue-600 font-bold hover:underline bg-blue-50 px-2 py-1 rounded w-fit"
+                            >
+                              <ImageIcon size={16} /> View Image
+                            </a>
+                          ) : order.proofType === 'ref' ? (
+                            <div className="flex items-center gap-2 text-slate-700 font-mono bg-slate-100 px-2 py-1 rounded w-fit">
+                              <FileText size={16} /> {order.proofValue}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs italic">No Proof</span>
+                          )}
+                      </td>
+                      <td className="p-4">
                          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
                           order.status === 'completed' ? 'bg-green-100 text-green-700' : 
                           order.status === 'rejected' ? 'bg-red-100 text-red-700' : 
-                          'bg-blue-100 text-blue-700'
+                          order.status === 'pending_review' ? 'bg-orange-100 text-orange-700' :
+                          'bg-gray-100 text-gray-500'
                         }`}>
-                          {order.status}
+                          {order.status === 'awaiting_proof' ? 'Waiting' : order.status.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="p-4">
-                        {order.status === 'pending' && (
+                        {(order.status === 'pending_review' || order.status === 'pending') && (
                           <div className="flex gap-2">
                             <button 
                               onClick={() => updateStatus(order.id, 'completed')}
