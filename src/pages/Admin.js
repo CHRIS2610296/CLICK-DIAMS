@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  LayoutDashboard, LogOut, Check, X, Loader2, Phone, FileText, Image as ImageIcon
+  LayoutDashboard, LogOut, Check, X, Loader2, Phone, FileText, Image as ImageIcon, Trash2 
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig'; 
-import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 export default function Admin() {
   const [orders, setOrders] = useState([]);
@@ -57,6 +57,16 @@ export default function Admin() {
       await updateDoc(orderRef, { status: newStatus });
     } catch (error) {
       alert("Error updating order: " + error.message);
+    }
+  };
+
+  // DELETE ORDER FUNCTION (New)
+  const deleteOrder = async (orderId) => {
+    if (!window.confirm("⚠️ Are you sure you want to DELETE this order? This cannot be undone.")) return;
+    try {
+      await deleteDoc(doc(db, "orders", orderId));
+    } catch (error) {
+      alert("Error deleting order: " + error.message);
     }
   };
 
@@ -146,7 +156,6 @@ export default function Admin() {
                         </span>
                       </td>
                       <td className="p-4">
-                         {/* PROOF COLUMN LOGIC */}
                          {order.proofType === 'image' ? (
                             <a 
                               href={order.proofValue} 
@@ -175,24 +184,34 @@ export default function Admin() {
                         </span>
                       </td>
                       <td className="p-4">
-                        {(order.status === 'pending_review' || order.status === 'pending') && (
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => updateStatus(order.id, 'completed')}
-                              className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg shadow-sm transition-all" 
-                              title="Approve"
-                            >
-                              <Check size={18} />
-                            </button>
-                            <button 
-                              onClick={() => updateStatus(order.id, 'rejected')}
-                              className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg shadow-sm transition-all" 
-                              title="Reject"
-                            >
-                              <X size={18} />
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex gap-2">
+                          {(order.status === 'pending_review' || order.status === 'pending') && (
+                            <>
+                              <button 
+                                onClick={() => updateStatus(order.id, 'completed')}
+                                className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg shadow-sm transition-all" 
+                                title="Approve"
+                              >
+                                <Check size={18} />
+                              </button>
+                              <button 
+                                onClick={() => updateStatus(order.id, 'rejected')}
+                                className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg shadow-sm transition-all" 
+                                title="Reject"
+                              >
+                                <X size={18} />
+                              </button>
+                            </>
+                          )}
+                          {/* DELETE BUTTON (Always Visible) */}
+                          <button 
+                            onClick={() => deleteOrder(order.id)}
+                            className="bg-gray-200 hover:bg-red-100 hover:text-red-600 text-gray-500 p-2 rounded-lg shadow-sm transition-all" 
+                            title="Delete Order"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
