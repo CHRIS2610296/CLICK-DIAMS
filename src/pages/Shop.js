@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ShoppingCart, Zap, Phone, X, Check, Loader2, ChevronLeft, AlertCircle, 
-  Facebook, MessageCircle // <--- NEW IMPORTS ADDED HERE
+  Facebook, MessageCircle 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig'; 
@@ -13,13 +13,38 @@ import { Pubg } from '../games/Pubg';
 import { MobileLegends } from '../games/MobileLegends';
 import { BloodStrike } from '../games/BloodStrike';
 
-// Combine them into one object for easy access
 const GAMES = {
   ff: FreeFire,
   pubg: Pubg,
   mlbb: MobileLegends,
   bs: BloodStrike
 };
+
+// --- FOOTER COMPONENT ---
+const Footer = () => (
+  <footer className="bg-white border-t border-gray-100 py-10 mt-auto">
+    <div className="max-w-7xl mx-auto px-4">
+      <div className="text-center mb-6">
+        <h3 className="font-black text-lg text-gray-800">NEED HELP?</h3>
+        <p className="text-gray-400 text-sm">Contact us directly for support.</p>
+      </div>
+      <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-lg mx-auto">
+        <a href="https://www.facebook.com/profile.php?id=61566866410986" target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-3 bg-[#1877F2]/10 text-[#1877F2] py-4 rounded-2xl font-bold hover:bg-[#1877F2] hover:text-white transition-all duration-300 group">
+          <Facebook className="group-hover:scale-110 transition-transform" size={24} />
+          <span>CLICK DIAMS</span>
+        </a>
+        <a href="https://wa.me/261388297737" target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-3 bg-[#25D366]/10 text-[#25D366] py-4 rounded-2xl font-bold hover:bg-[#25D366] hover:text-white transition-all duration-300 group">
+          <MessageCircle className="group-hover:scale-110 transition-transform" size={24} />
+          <span>038 82 977 37</span>
+        </a>
+      </div>
+      <div className="text-center mt-8 pt-8 border-t border-dashed border-gray-100">
+        <p className="text-xs text-gray-300 font-medium">© 2026 Click Diams. All rights reserved.</p>
+        <a href="/login" className="mt-2 inline-block text-[10px] text-gray-200 hover:text-gray-400">Admin Panel</a>
+      </div>
+    </div>
+  </footer>
+);
 
 const Toast = ({ message, type }) => (
   <motion.div 
@@ -33,46 +58,6 @@ const Toast = ({ message, type }) => (
     {type === 'error' ? <X size={18} /> : <Check size={18} />}
     <span>{message}</span>
   </motion.div>
-);
-
-// --- REUSABLE FOOTER COMPONENT ---
-const Footer = () => (
-  <footer className="bg-white border-t border-gray-100 py-10 mt-auto">
-    <div className="max-w-7xl mx-auto px-4">
-      <div className="text-center mb-6">
-        <h3 className="font-black text-lg text-gray-800">NEED HELP?</h3>
-        <p className="text-gray-400 text-sm">Contact us directly for support.</p>
-      </div>
-
-      <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-lg mx-auto">
-        {/* FACEBOOK BUTTON */}
-        <a 
-          href="https://web.facebook.com/garena000456?mibextid=wwXIfr&rdid=pE9cfX5Fqo50HDLF&share_url=https%3A%2F%2Fweb.facebook.com%2Fshare%2F1AXL4wLTYG%2F%3Fmibextid%3DwwXIfr%26_rdc%3D1%26_rdr#" 
-          target="_blank" 
-          rel="noreferrer"
-          className="flex-1 flex items-center justify-center gap-3 bg-[#1877F2]/10 text-[#1877F2] py-4 rounded-2xl font-bold hover:bg-[#1877F2] hover:text-white transition-all duration-300 group"
-        >
-          <Facebook className="group-hover:scale-110 transition-transform" size={24} />
-          <span>CLICK DIAMS</span>
-        </a>
-
-        {/* WHATSAPP BUTTON */}
-        <a 
-          href="https://wa.me/261388297737" 
-          target="_blank" 
-          rel="noreferrer"
-          className="flex-1 flex items-center justify-center gap-3 bg-[#25D366]/10 text-[#25D366] py-4 rounded-2xl font-bold hover:bg-[#25D366] hover:text-white transition-all duration-300 group"
-        >
-          <MessageCircle className="group-hover:scale-110 transition-transform" size={24} />
-          <span>038 82 977 37</span>
-        </a>
-      </div>
-
-      <div className="text-center mt-8 pt-8 border-t border-dashed border-gray-100">
-        <p className="text-xs text-gray-300 font-medium">© 2026 Click Diams. All rights reserved.</p>
-      </div>
-    </div>
-  </footer>
 );
 
 export default function Shop() {
@@ -116,7 +101,7 @@ export default function Shop() {
     }, 600); 
   };
 
-  const activeGame = GAMES[selectedGameKey]; // Get current game data
+  const activeGame = GAMES[selectedGameKey]; 
 
   const addToCart = (pkg) => {
     setCart(prev => {
@@ -124,7 +109,8 @@ export default function Shop() {
       if (existing) {
         return prev.map(item => item.id === pkg.id ? { ...item, quantity: item.quantity + 1 } : item);
       } else {
-        return [...prev, { ...pkg, quantity: 1, game: activeGame.name }];
+        // Save the specific package name if it exists, otherwise use the game name + total
+        return [...prev, { ...pkg, quantity: 1, game: activeGame.name, currency: activeGame.currency }];
       }
     });
     setToast({ message: "Added to cart!", type: "success" });
@@ -228,7 +214,6 @@ export default function Shop() {
               </div>
             )}
          </div>
-         {/* --- ADDED FOOTER HERE --- */}
          <Footer />
        </div>
     );
@@ -330,10 +315,16 @@ export default function Shop() {
               
               <div className="p-4 text-center">
                 <div className="mb-2">
-                   <h3 className="text-xl font-black text-gray-800 flex items-center justify-center gap-1">
-                     {pkg.total} <span className="text-sm font-normal text-gray-500">{activeGame.currency}</span>
+                   {/* --- UPDATED TITLE LOGIC --- */}
+                   <h3 className="text-xl font-black text-gray-800 flex items-center justify-center gap-1 text-center leading-tight">
+                     {pkg.name ? (
+                        <span>{pkg.name}</span>
+                     ) : (
+                        <>{pkg.total} <span className="text-sm font-normal text-gray-500">{activeGame.currency}</span></>
+                     )}
                    </h3>
-                   {pkg.bonus > 0 && (
+                   {/* Only show bonus if it exists AND total > 0 */}
+                   {pkg.bonus > 0 && pkg.total > 0 && (
                      <div className="text-[10px] text-gray-400 font-bold bg-gray-50 inline-block px-2 py-0.5 rounded-full mt-1">
                        {pkg.base} + <span className="text-green-600">{pkg.bonus} Bonus</span>
                      </div>
@@ -348,7 +339,6 @@ export default function Shop() {
         </div>
       </div>
 
-      {/* --- ADDED FOOTER HERE --- */}
       <Footer />
 
       <AnimatePresence>
@@ -375,7 +365,10 @@ export default function Shop() {
                     <div className="flex items-center gap-3">
                       <div className="text-[10px] font-bold bg-gray-100 px-1 rounded text-gray-500 mr-1">{item.game || activeGame.name}</div>
                       <div>
-                        <div className="font-bold text-sm">{item.total} {activeGame.currency}</div>
+                        {/* --- UPDATED CART TITLE LOGIC --- */}
+                        <div className="font-bold text-sm">
+                          {item.name ? item.name : `${item.total} ${item.currency || activeGame.currency}`} 
+                        </div>
                         <div className="text-xs text-gray-400">{item.price.toLocaleString()} Ar x {item.quantity}</div>
                       </div>
                     </div>

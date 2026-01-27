@@ -10,7 +10,7 @@ export default function Admin() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // --- NEW FILTER STATES ---
+  // --- FILTER STATES ---
   const [filterGame, setFilterGame] = useState('All');
   const [filterPayment, setFilterPayment] = useState('All');
 
@@ -56,14 +56,8 @@ export default function Admin() {
 
   // --- FILTER LOGIC ---
   const filteredOrders = orders.filter(order => {
-    // 1. Check Game Match
     const matchesGame = filterGame === 'All' || (order.game && order.game === filterGame);
-    
-    // 2. Check Payment Match
-    // Note: Database uses 'mvola', 'orange'. Filter uses these values to match.
-    // 'airtel' is added for future proofing if you add it to Shop.js later.
     const matchesPayment = filterPayment === 'All' || (order.paymentMethod && order.paymentMethod === filterPayment);
-
     return matchesGame && matchesPayment;
   });
 
@@ -102,8 +96,7 @@ export default function Admin() {
     alert(`Copied ID: ${text}`); 
   };
 
-  // Stats (Based on filtered orders or total orders? Usually Total is better for stats card)
-  // But let's calculate revenue based on TOTAL orders to keep stats accurate regardless of filter
+  // Stats
   const revenue = orders.filter(o => o.status === 'completed').reduce((acc, curr) => acc + (curr.totalPrice || 0), 0);
   const pendingCount = orders.filter(o => o.status === 'pending_review' || o.status === 'awaiting_proof').length;
 
@@ -225,8 +218,21 @@ export default function Admin() {
                         </a>
                       </td>
                       <td className="p-4">
-                        <div className="font-bold text-orange-600">{order.items?.[0]?.total || order.totalDiamonds} Unit</div>
-                        <div className="text-xs text-slate-500">{order.totalPrice.toLocaleString()} Ar</div>
+                        {/* --- UPDATED ITEM DISPLAY LOGIC --- */}
+                        {/* Checks for item Name first (Weekly Pass), otherwise shows Total + Currency */}
+                        {order.items && order.items.length > 0 ? (
+                          <div className="font-bold text-orange-600">
+                            {order.items[0].name ? (
+                              <span>{order.items[0].name}</span>
+                            ) : (
+                              <span>{order.items[0].total} {order.items[0].currency || 'Diamonds'}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="font-bold text-orange-600">{order.totalDiamonds} Diamonds</div>
+                        )}
+
+                        <div className="text-xs text-slate-500 mt-1">{order.totalPrice.toLocaleString()} Ar</div>
                         <span className={`text-[10px] font-bold px-1 py-0.5 rounded uppercase mt-1 inline-block ${
                           order.paymentMethod === 'mvola' ? 'bg-yellow-100 text-yellow-800' : 
                           order.paymentMethod === 'orange' ? 'bg-orange-100 text-orange-800' : 
