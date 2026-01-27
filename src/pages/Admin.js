@@ -49,18 +49,33 @@ export default function Admin() {
     return () => unsubscribe();
   }, []); 
 
-  // Status Updater
-  const updateStatus = async (orderId, newStatus) => {
+  // Status Updater with Auto-SMS
+  const updateStatus = async (orderId, newStatus, orderPhone) => {
     if (!window.confirm(`Mark order as ${newStatus}?`)) return;
+    
     try {
+      // 1. Update the database
       const orderRef = doc(db, "orders", orderId);
       await updateDoc(orderRef, { status: newStatus });
+
+      // 2. If Completed, open SMS app automatically
+      if (newStatus === 'completed' && orderPhone) {
+        const message = "CLICK DIAMS: Your purchase was successful! Diamonds have been sent. Thanks for your trust.";
+        
+        // Detect if user is on iPhone (iOS) or Android for correct link format
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const separator = isIOS ? '&' : '?';
+
+        // Open default SMS app
+        window.open(`sms:${orderPhone}${separator}body=${encodeURIComponent(message)}`, '_self');
+      }
+
     } catch (error) {
       alert("Error updating order: " + error.message);
     }
   };
 
-  // DELETE ORDER FUNCTION (New)
+  // Delete Order Function
   const deleteOrder = async (orderId) => {
     if (!window.confirm("⚠️ Are you sure you want to DELETE this order? This cannot be undone.")) return;
     try {
@@ -188,9 +203,9 @@ export default function Admin() {
                           {(order.status === 'pending_review' || order.status === 'pending') && (
                             <>
                               <button 
-                                onClick={() => updateStatus(order.id, 'completed')}
+                                onClick={() => updateStatus(order.id, 'completed', order.phone)}
                                 className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg shadow-sm transition-all" 
-                                title="Approve"
+                                title="Approve & Send SMS"
                               >
                                 <Check size={18} />
                               </button>
@@ -203,7 +218,7 @@ export default function Admin() {
                               </button>
                             </>
                           )}
-                          {/* DELETE BUTTON (Always Visible) */}
+                          
                           <button 
                             onClick={() => deleteOrder(order.id)}
                             className="bg-gray-200 hover:bg-red-100 hover:text-red-600 text-gray-500 p-2 rounded-lg shadow-sm transition-all" 
