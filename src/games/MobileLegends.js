@@ -1,0 +1,55 @@
+import bg from "../images/mobile-legends-bang-bang-logo-art-aatmalhs88j27tpj.jpg";
+
+export const MobileLegends = {
+  id: 'mlbb',
+  name: "Mobile Legends",
+  currency: "Diamonds",
+  labelID: "User ID",
+  needZone: true,
+  bg,
+  packages: [
+    { id: "ml_1", name: "55 Diamonds", total: 55, base: 55, bonus: 0, price: 3700 },
+    { id: "ml_2", name: "Super Value Pass", total: 0, base: 0, bonus: 0, price: 3700 },
+    { id: "ml_3", name: "86 Diamonds", total: 86, base: 86, bonus: 0, price: 5800 },
+    { id: "ml_4", name: "Weekly Pass", total: 0, base: 0, bonus: 0, price: 7100 },
+    { id: "ml_5", total: 165, base: 165, bonus: 0, price: 10900 },
+    { id: "ml_6", total: 172, base: 172, bonus: 0, price: 11400 },
+    { id: "ml_7", total: 257, base: 257, bonus: 0, price: 16400 },
+    { id: "ml_8", total: 275, base: 275, bonus: 0, price: 17600 },
+    { id: "ml_9", total: 343, base: 343, bonus: 0, price: 22100 },
+    { id: "ml_10", total: 344, base: 344, bonus: 0, price: 22900 },
+
+    { id: "ml_11", total: 429, base: 429, bonus: 0, price: 27800 },
+    { id: "ml_12", total: 430, base: 430, bonus: 0, price: 28600 },
+    { id: "ml_13", total: 514, base: 514, bonus: 0, price: 32800 },
+    { id: "ml_14", total: 516, base: 516, bonus: 0, price: 34300 },
+    { id: "ml_15", total: 565, base: 565, bonus: 0, price: 36100 },
+    { id: "ml_16", name: "Twilight Pass", total: 0, base: 0, bonus: 0, price: 37700 },
+    { id: "ml_17", total: 600, base: 600, bonus: 0, price: 38600 },
+    { id: "ml_18", total: 602, base: 602, bonus: 0, price: 40000 },
+    { id: "ml_19", total: 706, base: 706, bonus: 0, price: 45000 },
+    { id: "ml_20", total: 792, base: 792, bonus: 0, price: 50700 },
+
+    { id: "ml_21", total: 878, base: 878, bonus: 0, price: 56400 },
+    { id: "ml_22", total: 963, base: 963, bonus: 0, price: 61400 },
+    { id: "ml_23", total: 964, base: 964, bonus: 0, price: 62200 },
+    { id: "ml_24", total: 1050, base: 1050, bonus: 0, price: 67800 },
+    { id: "ml_25", total: 1060, base: 1060, bonus: 0, price: 68200 },
+    { id: "ml_26", total: 1136, base: 1136, bonus: 0, price: 73600 },
+    { id: "ml_27", total: 1222, base: 1222, bonus: 0, price: 79300 },
+    { id: "ml_28", total: 1308, base: 1308, bonus: 0, price: 85100 },
+    { id: "ml_29", total: 1412, base: 1412, bonus: 0, price: 90000 },
+    { id: "ml_30", total: 1498, base: 1498, bonus: 0, price: 95700 },
+
+    { id: "ml_31", total: 1584, base: 1584, bonus: 0, price: 101400 },
+    { id: "ml_32", total: 1670, base: 1670, bonus: 0, price: 107200 },
+    { id: "ml_33", total: 1756, base: 1756, bonus: 0, price: 112800 },
+    { id: "ml_34", total: 1842, base: 1842, bonus: 0, price: 118600 },
+    { id: "ml_35", total: 1928, base: 1928, bonus: 0, price: 124200 },
+    { id: "ml_36", total: 2195, base: 2195, bonus: 0, price: 136200 },
+    { id: "ml_37", total: 2281, base: 2281, bonus: 0, price: 141900 },
+    { id: "ml_38", total: 2367, base: 2367, bonus: 0, price: 147600 },
+    { id: "ml_39", total: 2453, base: 2453, bonus: 0, price: 153400 },
+    { id: "ml_40", total: 2539, base: 2539, bonus: 0, price: 159000 }
+  ]
+};

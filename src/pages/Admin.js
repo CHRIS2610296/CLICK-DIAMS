@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  LayoutDashboard, LogOut, Check, X, Loader2, Phone, FileText, Image as ImageIcon, Trash2 
+  LayoutDashboard, LogOut, Check, X, Loader2, Phone, FileText, Image as ImageIcon, Trash2, Copy, Filter 
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig'; 
@@ -9,6 +9,11 @@ import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } fro
 export default function Admin() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // --- NEW FILTER STATES ---
+  const [filterGame, setFilterGame] = useState('All');
+  const [filterPayment, setFilterPayment] = useState('All');
+
   const audioRef = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
   const isFirstLoad = useRef(true);
 
@@ -31,7 +36,7 @@ export default function Admin() {
         ...doc.data()
       }));
 
-      // Play sound if a new pending_review order arrives (skip on first page load)
+      // Play sound if a new pending_review order arrives
       if (!isFirstLoad.current) {
         const newReview = ordersData.filter(o => o.status === 'pending_review').length;
         const oldReview = orders.filter(o => o.status === 'pending_review').length;
@@ -49,33 +54,39 @@ export default function Admin() {
     return () => unsubscribe();
   }, []); 
 
-  // --- AUTOMATIC SMS REDIRECT FUNCTION ---
+  // --- FILTER LOGIC ---
+  const filteredOrders = orders.filter(order => {
+    // 1. Check Game Match
+    const matchesGame = filterGame === 'All' || (order.game && order.game === filterGame);
+    
+    // 2. Check Payment Match
+    // Note: Database uses 'mvola', 'orange'. Filter uses these values to match.
+    // 'airtel' is added for future proofing if you add it to Shop.js later.
+    const matchesPayment = filterPayment === 'All' || (order.paymentMethod && order.paymentMethod === filterPayment);
+
+    return matchesGame && matchesPayment;
+  });
+
+  // Automatic SMS Redirect
   const updateStatus = async (orderId, newStatus, orderPhone) => {
     if (!window.confirm(`Mark order as ${newStatus}?`)) return;
     
     try {
-      // 1. Update the database first
       const orderRef = doc(db, "orders", orderId);
       await updateDoc(orderRef, { status: newStatus });
 
-      // 2. If we are approving the order, Force Redirect to SMS App
       if (newStatus === 'completed' && orderPhone) {
         const message = "CLICK DIAMS: Your purchase was successful! Diamonds have been sent. Thanks for your trust.";
-        
-        // Check if phone is iPhone (iOS requires '&' separator, Android uses '?')
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         const separator = isIOS ? '&' : '?';
-
-        // FORCE REDIRECT to the SMS app
         window.location.href = `sms:${orderPhone}${separator}body=${encodeURIComponent(message)}`;
       }
-
     } catch (error) {
       alert("Error updating order: " + error.message);
     }
   };
 
-  // Delete Order Function
+  // Delete Order
   const deleteOrder = async (orderId) => {
     if (!window.confirm("⚠️ Are you sure you want to DELETE this order? This cannot be undone.")) return;
     try {
@@ -85,11 +96,15 @@ export default function Admin() {
     }
   };
 
-  // Calculate Stats
-  const revenue = orders
-    .filter(o => o.status === 'completed')
-    .reduce((acc, curr) => acc + (curr.totalPrice || 0), 0);
-  
+  // Copy ID
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    alert(`Copied ID: ${text}`); 
+  };
+
+  // Stats (Based on filtered orders or total orders? Usually Total is better for stats card)
+  // But let's calculate revenue based on TOTAL orders to keep stats accurate regardless of filter
+  const revenue = orders.filter(o => o.status === 'completed').reduce((acc, curr) => acc + (curr.totalPrice || 0), 0);
   const pendingCount = orders.filter(o => o.status === 'pending_review' || o.status === 'awaiting_proof').length;
 
   return (
@@ -101,10 +116,7 @@ export default function Admin() {
             <LayoutDashboard className="text-blue-600" /> 
             Admin Panel
           </h1>
-          <button 
-            onClick={handleLogout} 
-            className="flex items-center gap-2 text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg transition-colors border border-red-100 font-medium"
-          >
+          <button onClick={handleLogout} className="flex items-center gap-2 text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg transition-colors border border-red-100 font-medium">
             <LogOut size={18} /> Logout
           </button>
         </div>
@@ -122,6 +134,40 @@ export default function Admin() {
           <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-gray-500">
             <div className="text-slate-500 font-medium">Total Orders</div>
             <div className="text-4xl font-bold text-slate-800">{orders.length}</div>
+          </div>
+        </div>
+
+        {/* --- FILTER BAR --- */}
+        <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row gap-4 items-center">
+          <div className="flex items-center gap-2 text-slate-500 font-bold">
+            <Filter size={20} /> Filters:
+          </div>
+          
+          <select 
+            value={filterGame} 
+            onChange={(e) => setFilterGame(e.target.value)}
+            className="p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+          >
+            <option value="All">All Games</option>
+            <option value="Free Fire">Free Fire</option>
+            <option value="PUBG Mobile">PUBG Mobile</option>
+            <option value="Mobile Legends">Mobile Legends</option>
+            <option value="Blood Strike">Blood Strike</option>
+          </select>
+
+          <select 
+            value={filterPayment} 
+            onChange={(e) => setFilterPayment(e.target.value)}
+            className="p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+          >
+            <option value="All">All Payments</option>
+            <option value="mvola">Mvola</option>
+            <option value="orange">Orange Money</option>
+            <option value="airtel">Airtel Money</option>
+          </select>
+
+          <div className="ml-auto text-sm text-gray-400">
+            Showing {filteredOrders.length} orders
           </div>
         </div>
 
@@ -145,7 +191,7 @@ export default function Admin() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {orders.map((order) => (
+                  {filteredOrders.map((order) => (
                     <tr key={order.id} className={`hover:bg-gray-50 transition-colors ${order.status === 'pending_review' ? 'bg-orange-50/60' : ''}`}>
                       <td className="p-4 text-sm text-slate-500 whitespace-nowrap">
                         {order.createdAt?.seconds 
@@ -153,31 +199,45 @@ export default function Admin() {
                           : 'Just now'}
                       </td>
                       <td className="p-4">
-                        <div className="font-mono font-bold text-slate-800 bg-slate-100 inline-block px-2 rounded mb-1">
-                          ID: {order.playerID}
+                        {/* GAME BADGE */}
+                        {order.game && (
+                          <div className={`text-[10px] font-bold px-2 py-0.5 rounded w-fit mb-1 text-white ${
+                            order.game === 'Free Fire' ? 'bg-blue-500' :
+                            order.game === 'PUBG Mobile' ? 'bg-amber-500' :
+                            order.game === 'Mobile Legends' ? 'bg-purple-500' :
+                            'bg-red-500'
+                          }`}>
+                            {order.game}
+                          </div>
+                        )}
+
+                        <div 
+                          onClick={() => copyToClipboard(order.fullPlayerID || order.playerID)}
+                          className="font-mono font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 hover:scale-105 transition-all cursor-pointer inline-flex items-center gap-2 px-2 py-1 rounded mb-1 shadow-sm border border-slate-200"
+                          title="Click to copy ID"
+                        >
+                          {order.fullPlayerID || order.playerID} <Copy size={12} className="text-slate-400" />
                         </div>
+
                         {order.playerName && <div className="text-xs text-slate-500">Name: {order.playerName}</div>}
                         <a href={`tel:${order.phone}`} className="flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
                           <Phone size={12}/> {order.phone}
                         </a>
                       </td>
                       <td className="p-4">
-                        <div className="font-bold text-orange-600">{order.totalDiamonds} 💎</div>
+                        <div className="font-bold text-orange-600">{order.items?.[0]?.total || order.totalDiamonds} Unit</div>
                         <div className="text-xs text-slate-500">{order.totalPrice.toLocaleString()} Ar</div>
                         <span className={`text-[10px] font-bold px-1 py-0.5 rounded uppercase mt-1 inline-block ${
-                          order.paymentMethod === 'mvola' ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'
+                          order.paymentMethod === 'mvola' ? 'bg-yellow-100 text-yellow-800' : 
+                          order.paymentMethod === 'orange' ? 'bg-orange-100 text-orange-800' : 
+                          'bg-red-100 text-red-800'
                         }`}>
                           {order.paymentMethod}
                         </span>
                       </td>
                       <td className="p-4">
                          {order.proofType === 'image' ? (
-                            <a 
-                              href={order.proofValue} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              className="flex items-center gap-2 text-blue-600 font-bold hover:underline bg-blue-50 px-2 py-1 rounded w-fit"
-                            >
+                            <a href={order.proofValue} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-blue-600 font-bold hover:underline bg-blue-50 px-2 py-1 rounded w-fit">
                               <ImageIcon size={16} /> View Image
                             </a>
                           ) : order.proofType === 'ref' ? (
@@ -202,36 +262,24 @@ export default function Admin() {
                         <div className="flex gap-2">
                           {(order.status === 'pending_review' || order.status === 'pending') && (
                             <>
-                              <button 
-                                onClick={() => updateStatus(order.id, 'completed', order.phone)}
-                                className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg shadow-sm transition-all" 
-                                title="Approve & Send SMS"
-                              >
+                              <button onClick={() => updateStatus(order.id, 'completed', order.phone)} className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg shadow-sm transition-all" title="Approve & Send SMS">
                                 <Check size={18} />
                               </button>
-                              <button 
-                                onClick={() => updateStatus(order.id, 'rejected')}
-                                className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg shadow-sm transition-all" 
-                                title="Reject"
-                              >
+                              <button onClick={() => updateStatus(order.id, 'rejected')} className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg shadow-sm transition-all" title="Reject">
                                 <X size={18} />
                               </button>
                             </>
                           )}
-                          <button 
-                            onClick={() => deleteOrder(order.id)}
-                            className="bg-gray-200 hover:bg-red-100 hover:text-red-600 text-gray-500 p-2 rounded-lg shadow-sm transition-all" 
-                            title="Delete Order"
-                          >
+                          <button onClick={() => deleteOrder(order.id)} className="bg-gray-200 hover:bg-red-100 hover:text-red-600 text-gray-500 p-2 rounded-lg shadow-sm transition-all" title="Delete Order">
                             <Trash2 size={18} />
                           </button>
                         </div>
                       </td>
                     </tr>
                   ))}
-                  {orders.length === 0 && (
+                  {filteredOrders.length === 0 && (
                     <tr>
-                      <td colSpan="6" className="p-8 text-center text-gray-400">No orders found.</td>
+                      <td colSpan="6" className="p-8 text-center text-gray-400">No orders found matching filter.</td>
                     </tr>
                   )}
                 </tbody>
