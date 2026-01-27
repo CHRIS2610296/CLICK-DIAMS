@@ -49,25 +49,25 @@ export default function Admin() {
     return () => unsubscribe();
   }, []); 
 
-  // Status Updater with Auto-SMS
+  // --- AUTOMATIC SMS REDIRECT FUNCTION ---
   const updateStatus = async (orderId, newStatus, orderPhone) => {
     if (!window.confirm(`Mark order as ${newStatus}?`)) return;
     
     try {
-      // 1. Update the database
+      // 1. Update the database first
       const orderRef = doc(db, "orders", orderId);
       await updateDoc(orderRef, { status: newStatus });
 
-      // 2. If Completed, open SMS app automatically
+      // 2. If we are approving the order, Force Redirect to SMS App
       if (newStatus === 'completed' && orderPhone) {
         const message = "CLICK DIAMS: Your purchase was successful! Diamonds have been sent. Thanks for your trust.";
         
-        // Detect if user is on iPhone (iOS) or Android for correct link format
+        // Check if phone is iPhone (iOS requires '&' separator, Android uses '?')
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         const separator = isIOS ? '&' : '?';
 
-        // Open default SMS app
-        window.open(`sms:${orderPhone}${separator}body=${encodeURIComponent(message)}`, '_self');
+        // FORCE REDIRECT to the SMS app
+        window.location.href = `sms:${orderPhone}${separator}body=${encodeURIComponent(message)}`;
       }
 
     } catch (error) {
@@ -218,7 +218,6 @@ export default function Admin() {
                               </button>
                             </>
                           )}
-                          
                           <button 
                             onClick={() => deleteOrder(order.id)}
                             className="bg-gray-200 hover:bg-red-100 hover:text-red-600 text-gray-500 p-2 rounded-lg shadow-sm transition-all" 
