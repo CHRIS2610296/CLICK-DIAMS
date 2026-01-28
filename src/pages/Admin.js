@@ -52,7 +52,7 @@ export default function Admin() {
     });
 
     return () => unsubscribe();
-  }, []); 
+  }, [orders]); 
 
   // --- FILTER LOGIC ---
   const filteredOrders = orders.filter(order => {

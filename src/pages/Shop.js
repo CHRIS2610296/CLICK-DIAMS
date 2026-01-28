@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ShoppingCart, Zap, Phone, X, Check, Loader2, ChevronLeft, AlertCircle, 
+  ShoppingCart, X, Check, Loader2, ChevronLeft, 
   Facebook, MessageCircle 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,7 +29,7 @@ const Footer = () => (
         <p className="text-gray-400 text-sm">Contact us directly for support.</p>
       </div>
       <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-lg mx-auto">
-        <a href="https://www.facebook.com/profile.php?id=61566866410986" target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-3 bg-[#1877F2]/10 text-[#1877F2] py-4 rounded-2xl font-bold hover:bg-[#1877F2] hover:text-white transition-all duration-300 group">
+        <a href="https://facebook.com/garena000456" target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-3 bg-[#1877F2]/10 text-[#1877F2] py-4 rounded-2xl font-bold hover:bg-[#1877F2] hover:text-white transition-all duration-300 group">
           <Facebook className="group-hover:scale-110 transition-transform" size={24} />
           <span>CLICK DIAMS</span>
         </a>
