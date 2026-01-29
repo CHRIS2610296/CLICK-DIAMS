@@ -40,7 +40,6 @@ const Footer = () => (
       </div>
       <div className="text-center mt-8 pt-8 border-t border-dashed border-gray-100">
         <p className="text-xs text-gray-300 font-medium">© 2026 Click Diams. All rights reserved.</p>
-        <a href="/login" className="mt-2 inline-block text-[10px] text-gray-200 hover:text-gray-400">Admin Panel</a>
       </div>
     </div>
   </footer>
