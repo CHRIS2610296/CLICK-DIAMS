@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ShoppingCart, Zap, Phone, X, Check, Loader2, ChevronLeft, AlertCircle, 
-  Facebook, MessageCircle, Copy, Moon, Sun // <--- Added Moon & Sun Icons
+  Facebook, MessageCircle, Copy, Moon, Sun, ShieldCheck, Lock, 
+  Plus, Minus // <--- Added Plus and Minus Icons
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig'; 
@@ -20,7 +21,6 @@ const GAMES = {
   bs: BloodStrike
 };
 
-// --- FOOTER COMPONENT (Dark Mode Aware) ---
 const Footer = ({ isDarkMode }) => (
   <footer className={`border-t py-10 mt-auto transition-colors duration-300 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
     <div className="max-w-7xl mx-auto px-4">
@@ -29,7 +29,7 @@ const Footer = ({ isDarkMode }) => (
         <p className="text-gray-400 text-sm">Contact us directly for support.</p>
       </div>
       <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-lg mx-auto">
-        <a href="https://www.facebook.com/profile.php?id=61566866410986" target="_blank" rel="noreferrer" className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl font-bold transition-all duration-300 group ${isDarkMode ? 'bg-slate-800 text-blue-400 hover:bg-blue-600 hover:text-white' : 'bg-[#1877F2]/10 text-[#1877F2] hover:bg-[#1877F2] hover:text-white'}`}>
+        <a href="https://facebook.com/garena000456" target="_blank" rel="noreferrer" className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl font-bold transition-all duration-300 group ${isDarkMode ? 'bg-slate-800 text-blue-400 hover:bg-blue-600 hover:text-white' : 'bg-[#1877F2]/10 text-[#1877F2] hover:bg-[#1877F2] hover:text-white'}`}>
           <Facebook className="group-hover:scale-110 transition-transform" size={24} />
           <span>CLICK DIAMS</span>
         </a>
@@ -50,7 +50,7 @@ const Toast = ({ message, type }) => (
     initial={{ opacity: 0, y: 50, scale: 0.9 }} 
     animate={{ opacity: 1, y: 0, scale: 1 }} 
     exit={{ opacity: 0, y: 20, scale: 0.9 }}
-    className={`fixed bottom-20 md:bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 z-[60] font-bold backdrop-blur-md ${
+    className={`fixed bottom-20 md:bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 z-[70] font-bold backdrop-blur-md ${
       type === 'error' ? 'bg-red-500/90 text-white' : 'bg-green-500/90 text-white'
     }`}
   >
@@ -66,10 +66,9 @@ export default function Shop() {
   const [selectedGameKey, setSelectedGameKey] = useState('ff'); 
   const [loadingGame, setLoadingGame] = useState(false);
   const [isCartAnimating, setIsCartAnimating] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  // --- DARK MODE STATE ---
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    // Load preference from localStorage or default to false (Light Mode)
     return localStorage.getItem('theme') === 'dark';
   });
 
@@ -82,7 +81,6 @@ export default function Shop() {
   const [isValidatingID, setIsValidatingID] = useState(false);
   const [idVerified, setIdVerified] = useState(false);
 
-  // Save Dark Mode Preference
   useEffect(() => {
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
@@ -129,6 +127,18 @@ export default function Shop() {
     setToast({ message: "Added to cart!", type: "success" });
     setTimeout(() => setToast(null), 2000);
   };
+
+  // --- NEW: UPDATE QUANTITY FUNCTION ---
+  const updateQuantity = (itemId, change) => {
+    setCart(prev => prev.map(item => {
+      if (item.id === itemId) {
+        // Prevent quantity from going below 1
+        const newQuantity = Math.max(1, item.quantity + change);
+        return { ...item, quantity: newQuantity };
+      }
+      return item;
+    }));
+  };
   
   const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
   
@@ -136,18 +146,62 @@ export default function Shop() {
     price: cart.reduce((sum, item) => sum + (item.price * item.quantity), 0) 
   };
 
-  const verifyID = () => {
+  // --- REAL ID VERIFICATION ---
+  const verifyID = async () => {
     if (formData.playerID.length < 4) return setToast({ message: "Invalid ID", type: "error" });
     if (activeGame.needZone && formData.zoneID.length < 3) return setToast({ message: "Invalid Zone ID", type: "error" });
 
     setIsValidatingID(true);
-    setTimeout(() => { setIsValidatingID(false); setIdVerified(true); }, 1000);
+    setIdVerified(false);
+    setFormData(prev => ({ ...prev, playerName: '' }));
+
+    try {
+      const proxy = "https://corsproxy.io/?";
+      let targetUrl = "";
+
+      if (activeGame.id === 'ff') {
+        targetUrl = `https://api.isan.eu.org/nickname/freefire?id=${formData.playerID}`;
+      } else if (activeGame.id === 'mlbb') {
+        targetUrl = `https://api.isan.eu.org/nickname/mobile-legends?id=${formData.playerID}&zone=${formData.zoneID}`;
+      } else {
+        throw new Error("Manual check required");
+      }
+
+      const response = await fetch(proxy + encodeURIComponent(targetUrl));
+      const data = await response.json();
+
+      if (data.success === true && data.name) {
+         setFormData(prev => ({ ...prev, playerName: data.name }));
+         setIdVerified(true);
+         setToast({ message: `Verified: ${data.name}`, type: "success" });
+      } else {
+         throw new Error("Player not found");
+      }
+
+    } catch (error) {
+      console.error("ID Check Failed:", error);
+      setToast({ message: "Could not auto-verify. Please type name manually.", type: "error" });
+    } finally {
+      setIsValidatingID(false);
+    }
   };
 
-  const handleCheckout = async () => {
+  const handlePreCheckout = () => {
     if (!formData.playerID || !formData.phone || !formData.paymentMethod) return setToast({ message: "Fill all fields", type: "error" });
     if (activeGame.needZone && !formData.zoneID) return setToast({ message: "Zone ID is required", type: "error" });
 
+    const phoneRegex = /^(032|033|034|038|037)[0-9]{7}$/;
+    const cleanPhone = formData.phone.replace(/\s/g, ''); 
+    
+    if (!phoneRegex.test(cleanPhone)) {
+      return setToast({ message: "Invalid MG Phone Number (03x...)", type: "error" });
+    }
+
+    setShowConfirmModal(true);
+  };
+
+  const confirmOrder = async () => {
+    setShowConfirmModal(false);
     setIsProcessing(true);
     try {
       const orderData = {
@@ -187,7 +241,6 @@ export default function Shop() {
     setTimeout(() => setToast(null), 2000);
   };
 
-  // --- DARK MODE CLASSES HELPER ---
   const theme = {
     bg: isDarkMode ? 'bg-slate-950' : 'bg-slate-50',
     text: isDarkMode ? 'text-white' : 'text-slate-800',
@@ -211,22 +264,13 @@ export default function Shop() {
              </div>
              
              <div className="flex items-center gap-3">
-                {/* DARK MODE TOGGLE */}
                 <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-2 rounded-full transition-all ${theme.iconBtn}`}>
                   {isDarkMode ? <Sun size={22} className="text-yellow-400" /> : <Moon size={22} />}
                 </button>
-
-                {/* CART BUTTON */}
                 <button onClick={() => setIsCartOpen(true)} className={`relative p-2 rounded-full transition-all group ${theme.iconBtn}`}>
-                    {cart.length > 0 && (
-                      <span className="absolute inset-0 rounded-full bg-blue-400 opacity-75 animate-ping"></span>
-                    )}
+                    {cart.length > 0 && <span className="absolute inset-0 rounded-full bg-blue-400 opacity-75 animate-ping"></span>}
                     <ShoppingCart size={22} className="relative z-10" />
-                    {cart.length > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-white z-20">
-                        {cart.length}
-                      </span>
-                    )}
+                    {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-white z-20">{cart.length}</span>}
                 </button>
              </div>
            </div>
@@ -269,7 +313,6 @@ export default function Shop() {
     );
   }
 
-  // --- PAYMENT VIEW ---
   if (view === 'payment' && lastOrder) {
     const paymentInfo = {
       mvola: { name: "MVola", number: "038 82 977 37", color: "bg-green-50 text-green-700 border-green-200" },
@@ -434,13 +477,19 @@ export default function Shop() {
                         <div className={`font-bold text-sm ${theme.text}`}>
                           {item.name ? item.name : `${item.total} ${item.currency || activeGame.currency}`} 
                         </div>
-                        <div className={`text-xs ${theme.subText}`}>{item.price.toLocaleString()} Ar x {item.quantity}</div>
+                        <div className={`text-xs ${theme.subText}`}>{item.price.toLocaleString()} Ar</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    {/* --- NEW: QUANTITY CONTROLS WITH PLUS/MINUS --- */}
+                    <div className="flex flex-col items-end gap-1">
                       <span className={`font-bold ${theme.text}`}>{(item.price * item.quantity).toLocaleString()}</span>
-                      <button onClick={()=>removeFromCart(item.id)} className="text-gray-400 hover:text-red-500"><X size={18}/></button>
+                      <div className={`flex items-center gap-2 rounded-lg p-1 ${isDarkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
+                        <button onClick={() => updateQuantity(item.id, -1)} className={`p-1 rounded transition-colors ${isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-white shadow-sm'}`}><Minus size={12}/></button>
+                        <span className={`text-xs font-bold w-4 text-center ${theme.text}`}>{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.id, 1)} className={`p-1 rounded transition-colors ${isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-white shadow-sm'}`}><Plus size={12}/></button>
+                      </div>
                     </div>
+                    <button onClick={()=>removeFromCart(item.id)} className="text-gray-400 hover:text-red-500 ml-2"><X size={18}/></button>
                   </div>
                 ))}
               </div>
@@ -468,13 +517,17 @@ export default function Shop() {
                            </div>
                          )}
                       </div>
+                    
+                      <input 
+                        type="text" 
+                        placeholder={idVerified ? "Name Verified" : "Username"} 
+                        className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 ${theme.input} ${idVerified ? 'border-green-500 text-green-600 font-bold bg-green-50/10' : ''}`} 
+                        value={formData.playerName} 
+                        readOnly={idVerified} 
+                        onChange={e=>setFormData({...formData,playerName:e.target.value})} 
+                      />
                       
-                      <button onClick={verifyID} disabled={isValidatingID || idVerified} className={`w-full text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-2 ${isDarkMode ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}>
-                        {isValidatingID?<Loader2 className="animate-spin" size={14}/>:idVerified?<><Check size={14} className="text-green-500"/> ID Verified</>:"Check ID"}
-                      </button>
-
-                      <input type="text" placeholder="Username (Optional)" className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 ${theme.input}`} value={formData.playerName} onChange={e=>setFormData({...formData,playerName:e.target.value})} />
-                      <input type="tel" placeholder="Phone Number *" className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 ${theme.input}`} value={formData.phone} onChange={e=>setFormData({...formData,phone:e.target.value})} />
+                      <input type="tel" placeholder="Num MG phone Ampiasainao..." className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 ${theme.input}`} value={formData.phone} onChange={e=>setFormData({...formData,phone:e.target.value})} />
                       
                       <div className="grid grid-cols-3 gap-2">
                         {/*<button onClick={()=>setFormData({...formData,paymentMethod:'mvola'})} className={`p-2 rounded-xl border-2 font-bold text-xs ${formData.paymentMethod==='mvola'?'border-green-500 bg-green-500/10 text-green-500':'border-gray-200 text-gray-400'}`}>MVola</button>*/}
@@ -482,13 +535,50 @@ export default function Shop() {
                         <button onClick={()=>setFormData({...formData,paymentMethod:'airtel'})} className={`p-2 rounded-xl border-2 font-bold text-xs ${formData.paymentMethod==='airtel'?'border-red-500 bg-red-500/10 text-red-500':'border-gray-200 text-gray-400'}`}>Airtel</button>
                       </div>
                   </div>
-                  <button onClick={handleCheckout} disabled={isProcessing} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-700">{isProcessing?<Loader2 className="animate-spin"/>:"Confirm Order"}</button>
+                  <button onClick={handlePreCheckout} disabled={isProcessing} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-700">{isProcessing?<Loader2 className="animate-spin"/>:"Confirm Order"}</button>
                 </div>
               )}
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {showConfirmModal && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{scale:0.9, opacity:0}} animate={{scale:1, opacity:1}} exit={{scale:0.9, opacity:0}} className={`w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden ${isDarkMode ? 'bg-slate-900 text-white' : 'bg-white text-gray-900'}`}>
+              <div className="bg-blue-600 p-4 text-white flex justify-between items-center">
+                <h3 className="font-bold flex items-center gap-2"><ShieldCheck size={20}/> Confirm Order</h3>
+                <button onClick={() => setShowConfirmModal(false)} className="hover:bg-white/20 p-1 rounded-full"><X size={20}/></button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className={`p-3 rounded-lg border text-sm space-y-1 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-gray-50 border-gray-100'}`}>
+                  <div className="flex justify-between"><span>Player ID:</span> <span className="font-mono font-bold">{formData.playerID}</span></div>
+                  {activeGame.needZone && <div className="flex justify-between"><span>Zone ID:</span> <span className="font-mono font-bold">{formData.zoneID}</span></div>}
+                  {formData.playerName && <div className="flex justify-between"><span>Username:</span> <span className="font-bold text-blue-500">{formData.playerName}</span></div>}
+                  <div className="flex justify-between border-t border-dashed pt-1 mt-1"><span>Phone:</span> <span className="font-bold">{formData.phone}</span></div>
+                </div>
+                
+                <div className="text-center">
+                  <div className="text-xs uppercase text-gray-500 tracking-widest mb-1">Total To Pay</div>
+                  <div className="text-3xl font-black">{totals.price.toLocaleString()} Ar</div>
+                </div>
+
+                <div className={`text-[10px] p-2 rounded flex gap-2 items-start ${isDarkMode ? 'bg-yellow-900/30 text-yellow-500' : 'bg-yellow-50 text-yellow-700'}`}>
+                  <Lock size={14} className="shrink-0 mt-0.5" />
+                  <span>NB: Verifiena tsara ny numero anao sy ny UID sy ny Pseudo</span>
+                </div>
+
+                <div className="flex gap-3">
+                  <button onClick={() => setShowConfirmModal(false)} className={`flex-1 py-3 rounded-xl font-bold text-sm ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-gray-100 hover:bg-gray-200'}`}>Hanova</button>
+                  <button onClick={confirmOrder} className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-green-500/20">Eny, Hanohy</button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>{toast && <Toast {...toast} />}</AnimatePresence>
     </div>
   );
