@@ -52,7 +52,7 @@ export default function Admin() {
     });
 
     return () => unsubscribe();
-  }, [orders]); 
+  }, []); 
 
   // --- FILTER LOGIC ---
   const filteredOrders = orders.filter(order => {
@@ -218,21 +218,29 @@ export default function Admin() {
                         </a>
                       </td>
                       <td className="p-4">
-                        {/* --- UPDATED ITEM DISPLAY LOGIC --- */}
-                        {/* Checks for item Name first (Weekly Pass), otherwise shows Total + Currency */}
+                        {/* --- FIXED: DISPLAY ALL ITEMS IN CART --- */}
                         {order.items && order.items.length > 0 ? (
-                          <div className="font-bold text-orange-600">
-                            {order.items[0].name ? (
-                              <span>{order.items[0].name}</span>
-                            ) : (
-                              <span>{order.items[0].total} {order.items[0].currency || 'Diamonds'}</span>
-                            )}
+                          <div className="space-y-1">
+                            {order.items.map((item, index) => (
+                              <div key={index} className="text-sm font-bold text-slate-700 border-b border-gray-100 pb-1 last:border-0">
+                                <span className="text-orange-600 mr-1">{item.quantity}x</span>
+                                {item.name ? (
+                                  <span>{item.name}</span>
+                                ) : (
+                                  <span>{item.total} {item.currency || 'Diamonds'}</span>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         ) : (
+                          // Fallback for old orders before multi-item support
                           <div className="font-bold text-orange-600">{order.totalDiamonds} Diamonds</div>
                         )}
 
-                        <div className="text-xs text-slate-500 mt-1">{order.totalPrice.toLocaleString()} Ar</div>
+                        <div className="text-xs text-slate-500 mt-2 pt-1 border-t border-gray-200 font-bold">
+                          Total: {order.totalPrice.toLocaleString()} Ar
+                        </div>
+                        
                         <span className={`text-[10px] font-bold px-1 py-0.5 rounded uppercase mt-1 inline-block ${
                           order.paymentMethod === 'mvola' ? 'bg-yellow-100 text-yellow-800' : 
                           order.paymentMethod === 'orange' ? 'bg-orange-100 text-orange-800' : 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ShoppingCart, X, Check, Loader2, ChevronLeft, 
-  Facebook, MessageCircle 
+  ShoppingCart, Zap, Phone, X, Check, Loader2, ChevronLeft, AlertCircle, 
+  Facebook, MessageCircle, Copy 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig'; 
@@ -29,7 +29,7 @@ const Footer = () => (
         <p className="text-gray-400 text-sm">Contact us directly for support.</p>
       </div>
       <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-lg mx-auto">
-        <a href="https://facebook.com/garena000456" target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-3 bg-[#1877F2]/10 text-[#1877F2] py-4 rounded-2xl font-bold hover:bg-[#1877F2] hover:text-white transition-all duration-300 group">
+        <a href="https://www.facebook.com/profile.php?id=61566866410986" target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-3 bg-[#1877F2]/10 text-[#1877F2] py-4 rounded-2xl font-bold hover:bg-[#1877F2] hover:text-white transition-all duration-300 group">
           <Facebook className="group-hover:scale-110 transition-transform" size={24} />
           <span>CLICK DIAMS</span>
         </a>
@@ -40,6 +40,7 @@ const Footer = () => (
       </div>
       <div className="text-center mt-8 pt-8 border-t border-dashed border-gray-100">
         <p className="text-xs text-gray-300 font-medium">© 2026 Click Diams. All rights reserved.</p>
+        <a href="/login" className="mt-2 inline-block text-[10px] text-gray-200 hover:text-gray-400">Admin Panel</a>
       </div>
     </div>
   </footer>
@@ -65,6 +66,9 @@ export default function Shop() {
   const [view, setView] = useState('games'); 
   const [selectedGameKey, setSelectedGameKey] = useState('ff'); 
   const [loadingGame, setLoadingGame] = useState(false);
+  
+  // --- NEW STATE FOR ANIMATION ---
+  const [isCartAnimating, setIsCartAnimating] = useState(false);
 
   const [formData, setFormData] = useState({ playerID: '', zoneID: '', playerName: '', phone: '', paymentMethod: '' });
   const [isProcessing, setIsProcessing] = useState(false);
@@ -103,12 +107,15 @@ export default function Shop() {
   const activeGame = GAMES[selectedGameKey]; 
 
   const addToCart = (pkg) => {
+    // --- TRIGGER ANIMATION ---
+    setIsCartAnimating(true);
+    setTimeout(() => setIsCartAnimating(false), 600); // Animation lasts 600ms
+
     setCart(prev => {
       const existing = prev.find(item => item.id === pkg.id);
       if (existing) {
         return prev.map(item => item.id === pkg.id ? { ...item, quantity: item.quantity + 1 } : item);
       } else {
-        // Save the specific package name if it exists, otherwise use the game name + total
         return [...prev, { ...pkg, quantity: 1, game: activeGame.name, currency: activeGame.currency }];
       }
     });
@@ -167,6 +174,12 @@ export default function Shop() {
     } catch (error) { setToast({ message: "Update failed", type: "error" }); } finally { setIsUploading(false); }
   };
 
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text.replace(/\s/g, ''));
+    setToast({ message: "Number Copied!", type: "success" });
+    setTimeout(() => setToast(null), 2000);
+  };
+
   // --- VIEWS ---
 
   if (view === 'games') {
@@ -178,6 +191,19 @@ export default function Shop() {
                <img src="/clickdiams.jpg" alt="Logo" className="w-10 h-10 rounded-lg shadow-sm" />
                <h1 className="text-xl font-black italic">CLICK <span className="text-blue-600">DIAMS</span></h1>
              </div>
+             
+             {/* --- HEADER CART BUTTON WITH WAVE ANIMATION --- */}
+             <button onClick={() => setIsCartOpen(true)} className="relative p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-all group">
+                {isCartAnimating && (
+                  <span className="absolute inset-0 rounded-full bg-blue-400 opacity-75 animate-ping"></span>
+                )}
+                <ShoppingCart size={22} className={`text-gray-700 transition-transform ${isCartAnimating ? 'scale-110' : ''}`} />
+                {cart.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                    {cart.length}
+                  </span>
+                )}
+             </button>
            </div>
          </nav>
          
@@ -219,7 +245,14 @@ export default function Shop() {
   }
 
   if (view === 'payment' && lastOrder) {
-    const payNumber = lastOrder.paymentMethod === 'mvola' ? '038 82 977 37' : '032 77 546 97';
+    const paymentInfo = {
+      mvola: { name: "MVola", number: "038 82 977 37", color: "bg-green-50 text-green-700 border-green-200" },
+      orange: { name: "Orange Money", number: "037 33 073 23", color: "bg-orange-50 text-orange-700 border-orange-200" },
+      airtel: { name: "Airtel Money", number: "033 24 322 07", color: "bg-red-50 text-red-700 border-red-200" }
+    };
+
+    const currentPay = paymentInfo[lastOrder.paymentMethod];
+
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-xl max-w-md w-full overflow-hidden">
@@ -231,19 +264,23 @@ export default function Shop() {
             <div className="text-center mb-6">
               <p className="text-gray-500 text-xs uppercase tracking-wide">VOLA ALEFA</p>
               <p className="text-3xl font-black text-gray-900">{lastOrder.totalPrice.toLocaleString()} Ar</p>
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mt-4">
-                 <p className="text-sm text-gray-600"> {lastOrder.paymentMethod === 'mvola' ? 'MVola' : 'Orange Money'}:</p>
-                 <p className="text-2xl font-black text-orange-600 tracking-wider mt-1">{payNumber}</p>
-                 <p className="text-xs text-gray-400 mt-1"><strong> <u> Anarana: FANILONIAINA CHRISTIAN </u></strong></p>
+              
+              <div className={`border rounded-xl p-4 mt-4 relative ${currentPay.color}`}>
+                 <p className="text-xs font-bold uppercase tracking-wider opacity-70">Send via {currentPay.name}</p>
+                 <div onClick={() => copyToClipboard(currentPay.number)} className="text-2xl font-black tracking-widest mt-1 cursor-pointer flex items-center justify-center gap-2 hover:opacity-80 transition-opacity" title="Click to copy">
+                    {currentPay.number} <Copy size={16}/>
+                 </div>
+                 <div className="w-full h-px bg-current opacity-20 my-2"></div>
+                 <p className="text-xs font-bold">Name: FANILONIAINA CHRISTIAN</p>
               </div>
             </div>
+
             <div className="mt-4 text-sm font-semibold text-red-600 bg-red-50 p-3 rounded-lg border border-red-100 mb-6">
-              ⚠️ <span className="uppercase font-bold">Zava-dehibe:</span>{" "}
-              Tandremo diso ilay numéro fa tsy miantoka ny fahadisoanao izahay.
+              ⚠️ <span className="uppercase font-bold">Zava-dehibe:</span> Tandremo diso ilay numéro fa tsy miantoka ny fahadisoanao izahay.
             </div>
             <div className="mb-6">
-               <label className="text-sm font-bold text-gray-700 mb-2 block">Transaction Reference</label>
-               <input type="text" placeholder="Reference (e.g. 230515...)" className="w-full p-3 border rounded-xl bg-gray-50 font-mono tracking-widest text-center" value={refNumber} onChange={(e) => setRefNumber(e.target.value)} />
+               <label className="text-sm font-bold text-gray-700 mb-2 block">Transaction Reference (Trans id:)</label>
+               <input type="text" placeholder="Reference (oh. MP260129.1215....)" className="w-full p-3 border rounded-xl bg-gray-50 font-mono tracking-widest text-center" value={refNumber} onChange={(e) => setRefNumber(e.target.value)} />
             </div>
             <button onClick={handleSubmitProof} disabled={isUploading} className="w-full bg-blue-900 text-white py-4 rounded-xl font-bold flex justify-center items-center gap-2">
               {isUploading ? <Loader2 className="animate-spin" /> : "Verify Payment"}
@@ -282,8 +319,13 @@ export default function Shop() {
               <p className="text-[10px] text-gray-400 font-bold tracking-widest">{activeGame.name.toUpperCase()}</p>
             </div>
           </div>
-          <button onClick={() => setIsCartOpen(true)} className="relative p-2 bg-gray-100 rounded-full hover:bg-gray-200">
-            <ShoppingCart size={22} className="text-gray-700" />
+          
+          {/* --- HEADER CART BUTTON WITH WAVE ANIMATION --- */}
+          <button onClick={() => setIsCartOpen(true)} className="relative p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-all group">
+            {isCartAnimating && (
+              <span className="absolute inset-0 rounded-full bg-blue-400 opacity-75 animate-ping"></span>
+            )}
+            <ShoppingCart size={22} className={`text-gray-700 transition-transform ${isCartAnimating ? 'scale-110' : ''}`} />
             {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">{cart.length}</span>}
           </button>
         </div>
@@ -314,7 +356,6 @@ export default function Shop() {
               
               <div className="p-4 text-center">
                 <div className="mb-2">
-                   {/* --- UPDATED TITLE LOGIC --- */}
                    <h3 className="text-xl font-black text-gray-800 flex items-center justify-center gap-1 text-center leading-tight">
                      {pkg.name ? (
                         <span>{pkg.name}</span>
@@ -322,7 +363,6 @@ export default function Shop() {
                         <>{pkg.total} <span className="text-sm font-normal text-gray-500">{activeGame.currency}</span></>
                      )}
                    </h3>
-                   {/* Only show bonus if it exists AND total > 0 */}
                    {pkg.bonus > 0 && pkg.total > 0 && (
                      <div className="text-[10px] text-gray-400 font-bold bg-gray-50 inline-block px-2 py-0.5 rounded-full mt-1">
                        {pkg.base} + <span className="text-green-600">{pkg.bonus} Bonus</span>
@@ -340,9 +380,13 @@ export default function Shop() {
 
       <Footer />
 
+      {/* --- FLOATING MOBILE CART BUTTON WITH WAVE ANIMATION --- */}
       <AnimatePresence>
         {!isCartOpen && cart.length > 0 && (
-          <motion.button initial={{scale:0}} animate={{scale:1}} exit={{scale:0}} onClick={()=>setIsCartOpen(true)} className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-2xl z-40 md:hidden">
+          <motion.button initial={{scale:0}} animate={{scale:1}} exit={{scale:0}} onClick={()=>setIsCartOpen(true)} className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-2xl z-40 md:hidden overflow-visible">
+            {isCartAnimating && (
+              <span className="absolute inset-0 rounded-full bg-white opacity-50 animate-ping"></span>
+            )}
             <ShoppingCart size={24} />
             <span className="absolute -top-1 -right-1 bg-red-500 text-white w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center border-2 border-white">{cart.length}</span>
           </motion.button>
@@ -364,7 +408,6 @@ export default function Shop() {
                     <div className="flex items-center gap-3">
                       <div className="text-[10px] font-bold bg-gray-100 px-1 rounded text-gray-500 mr-1">{item.game || activeGame.name}</div>
                       <div>
-                        {/* --- UPDATED CART TITLE LOGIC --- */}
                         <div className="font-bold text-sm">
                           {item.name ? item.name : `${item.total} ${item.currency || activeGame.currency}`} 
                         </div>
@@ -409,9 +452,10 @@ export default function Shop() {
 
                       <input type="text" placeholder="Username (Optional)" className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={formData.playerName} onChange={e=>setFormData({...formData,playerName:e.target.value})} />
                       <input type="tel" placeholder="Phone Number *" className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={formData.phone} onChange={e=>setFormData({...formData,phone:e.target.value})} />
-                      <div className="grid grid-cols-2 gap-3">
-                        <button onClick={()=>setFormData({...formData,paymentMethod:'mvola'})} className={`p-3 rounded-xl border-2 font-bold text-sm ${formData.paymentMethod==='mvola'?'border-green-500 bg-green-50 text-green-800':'border-gray-200 text-gray-400'}`}>MVola</button>
-                        <button onClick={()=>setFormData({...formData,paymentMethod:'orange'})} className={`p-3 rounded-xl border-2 font-bold text-sm ${formData.paymentMethod==='orange'?'border-orange-500 bg-orange-50 text-orange-800':'border-gray-200 text-gray-400'}`}>Orange</button>
+                      <div className="grid grid-cols-3 gap-2">
+                        {/*<button onClick={()=>setFormData({...formData,paymentMethod:'mvola'})} className={`p-2 rounded-xl border-2 font-bold text-xs ${formData.paymentMethod==='mvola'?'border-green-500 bg-green-50 text-green-800':'border-gray-200 text-gray-400'}`}>MVola</button>*/}
+                        <button onClick={()=>setFormData({...formData,paymentMethod:'orange'})} className={`p-2 rounded-xl border-2 font-bold text-xs ${formData.paymentMethod==='orange'?'border-orange-500 bg-orange-50 text-orange-800':'border-gray-200 text-gray-400'}`}>Orange</button>
+                        <button onClick={()=>setFormData({...formData,paymentMethod:'airtel'})} className={`p-2 rounded-xl border-2 font-bold text-xs ${formData.paymentMethod==='airtel'?'border-red-500 bg-red-50 text-red-800':'border-gray-200 text-gray-400'}`}>Airtel</button>
                       </div>
                   </div>
                   <button onClick={handleCheckout} disabled={isProcessing} className="w-full bg-blue-900 text-white py-4 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-800">{isProcessing?<Loader2 className="animate-spin"/>:"Confirm Order"}</button>
