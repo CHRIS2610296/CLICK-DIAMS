@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  LayoutDashboard, LogOut, Check, X, Loader2, Phone, FileText, Image as ImageIcon, Trash2, Copy, Filter 
+  LayoutDashboard, LogOut, Check, X, Loader2, Phone, FileText, Image as ImageIcon, Trash2, Copy, Filter, Square, CheckSquare 
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig'; 
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, setDoc } from 'firebase/firestore';
+// --- NEW: IMPORT RECHARTS ---
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 export default function Admin() {
   const [orders, setOrders] = useState([]);
@@ -13,6 +15,13 @@ export default function Admin() {
   // --- FILTER STATES ---
   const [filterGame, setFilterGame] = useState('All');
   const [filterPayment, setFilterPayment] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
+
+  // --- SELECTION STATE ---
+  const [selectedOrders, setSelectedOrders] = useState([]); 
+
+  // --- STORE STATUS STATE ---
+  const [isOnline, setIsOnline] = useState(false);
 
   const audioRef = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
   const isFirstLoad = useRef(true);
@@ -26,7 +35,7 @@ export default function Admin() {
     }
   };
 
-  // Real-time Data Listener
+  // 1. Real-time Data Listener
   useEffect(() => {
     const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
     
@@ -36,7 +45,6 @@ export default function Admin() {
         ...doc.data()
       }));
 
-      // Play sound if a new pending_review order arrives
       if (!isFirstLoad.current) {
         const newReview = ordersData.filter(o => o.status === 'pending_review').length;
         const oldReview = orders.filter(o => o.status === 'pending_review').length;
@@ -52,19 +60,93 @@ export default function Admin() {
     });
 
     return () => unsubscribe();
-  }, []); 
+  }, [orders.length]); 
 
-  // --- FILTER LOGIC ---
+  // 2. Store Status Listener
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "config", "storeStatus"), (doc) => {
+      if (doc.exists()) setIsOnline(doc.data().online);
+    });
+    return () => unsub();
+  }, []);
+
+  // --- CHART DATA GENERATOR (Option 4) ---
+  const getChartData = () => {
+    const last7Days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      last7Days.push({
+        date: d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' }), // e.g., "30/01"
+        rawDate: d.toDateString(),
+        sales: 0
+      });
+    }
+
+    orders.forEach(order => {
+      // Only count COMPLETED orders
+      if (order.status === 'completed' && order.createdAt) {
+        const orderDate = new Date(order.createdAt.seconds * 1000).toDateString();
+        const dayEntry = last7Days.find(d => d.rawDate === orderDate);
+        if (dayEntry) {
+          dayEntry.sales += order.totalPrice;
+        }
+      }
+    });
+
+    return last7Days;
+  };
+
+  const chartData = getChartData();
+
+  // --- LOGIC FUNCTIONS ---
+  const toggleOnlineStatus = async () => {
+    const newStatus = !isOnline;
+    try { await setDoc(doc(db, "config", "storeStatus"), { online: newStatus }); } 
+    catch (error) { alert("Error: " + error.message); }
+  };
+
   const filteredOrders = orders.filter(order => {
     const matchesGame = filterGame === 'All' || (order.game && order.game === filterGame);
     const matchesPayment = filterPayment === 'All' || (order.paymentMethod && order.paymentMethod === filterPayment);
-    return matchesGame && matchesPayment;
+    const matchesStatus = filterStatus === 'All' || order.status === filterStatus;
+    return matchesGame && matchesPayment && matchesStatus;
   });
 
-  // Automatic SMS Redirect
+  const toggleSelectOrder = (id) => {
+    if (selectedOrders.includes(id)) {
+      setSelectedOrders(selectedOrders.filter(orderId => orderId !== id));
+    } else {
+      setSelectedOrders([...selectedOrders, id]);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedOrders.length === filteredOrders.length) {
+      setSelectedOrders([]); 
+    } else {
+      setSelectedOrders(filteredOrders.map(o => o.id)); 
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (!window.confirm(`⚠️ Are you sure you want to DELETE ${selectedOrders.length} orders?`)) return;
+    try {
+      const batch = writeBatch(db);
+      selectedOrders.forEach(id => {
+        const docRef = doc(db, "orders", id);
+        batch.delete(docRef);
+      });
+      await batch.commit();
+      setSelectedOrders([]); 
+      alert("Orders deleted successfully.");
+    } catch (error) {
+      alert("Error deleting orders: " + error.message);
+    }
+  };
+
   const updateStatus = async (orderId, newStatus, orderPhone) => {
     if (!window.confirm(`Mark order as ${newStatus}?`)) return;
-    
     try {
       const orderRef = doc(db, "orders", orderId);
       await updateDoc(orderRef, { status: newStatus });
@@ -80,9 +162,8 @@ export default function Admin() {
     }
   };
 
-  // Delete Order
   const deleteOrder = async (orderId) => {
-    if (!window.confirm("⚠️ Are you sure you want to DELETE this order? This cannot be undone.")) return;
+    if (!window.confirm("⚠️ Are you sure you want to DELETE this order?")) return;
     try {
       await deleteDoc(doc(db, "orders", orderId));
     } catch (error) {
@@ -90,18 +171,17 @@ export default function Admin() {
     }
   };
 
-  // Copy ID
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     alert(`Copied ID: ${text}`); 
   };
 
-  // Stats
   const revenue = orders.filter(o => o.status === 'completed').reduce((acc, curr) => acc + (curr.totalPrice || 0), 0);
   const pendingCount = orders.filter(o => o.status === 'pending_review' || o.status === 'awaiting_proof').length;
+  const completedCount = orders.filter(o => o.status === 'completed').length;
 
   return (
-    <div className="min-h-screen bg-slate-100 p-6">
+    <div className="min-h-screen bg-slate-100 p-6 relative pb-20">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm gap-4">
@@ -109,16 +189,35 @@ export default function Admin() {
             <LayoutDashboard className="text-blue-600" /> 
             Admin Panel
           </h1>
-          <button onClick={handleLogout} className="flex items-center gap-2 text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg transition-colors border border-red-100 font-medium">
-            <LogOut size={18} /> Logout
-          </button>
+          
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={toggleOnlineStatus}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all border ${
+                isOnline 
+                  ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' 
+                  : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+              }`}
+            >
+              <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`}></div>
+              {isOnline ? "ONLINE" : "OFFLINE"}
+            </button>
+
+            <button onClick={handleLogout} className="flex items-center gap-2 text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg transition-colors border border-red-100 font-medium">
+              <LogOut size={18} /> Logout
+            </button>
+          </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500">
             <div className="text-slate-500 font-medium">Pending Review</div>
             <div className="text-4xl font-bold text-slate-800">{pendingCount}</div>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-600">
+            <div className="text-slate-500 font-medium">Completed Orders</div>
+            <div className="text-4xl font-bold text-green-700">{completedCount}</div>
           </div>
           <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500">
             <div className="text-slate-500 font-medium">Total Revenue</div>
@@ -130,12 +229,44 @@ export default function Admin() {
           </div>
         </div>
 
+        {/* --- NEW: REVENUE CHART (Option 4) --- */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+          <h2 className="font-bold text-lg text-slate-700 mb-4">Last 7 Days Revenue</h2>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#64748B', fontSize: 12}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748B', fontSize: 12}} tickFormatter={(value) => `${value/1000}k`} />
+                <Tooltip 
+                  cursor={{fill: '#F1F5F9'}} 
+                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} 
+                  formatter={(value) => [`${value.toLocaleString()} Ar`, 'Sales']} 
+                />
+                <Bar dataKey="sales" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
         {/* --- FILTER BAR --- */}
-        <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row gap-4 items-center">
+        <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-wrap gap-4 items-center">
           <div className="flex items-center gap-2 text-slate-500 font-bold">
             <Filter size={20} /> Filters:
           </div>
           
+          <select 
+            value={filterStatus} 
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="p-2 border border-blue-300 rounded-lg bg-blue-50 font-bold text-blue-700 outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="All">All Status</option>
+            <option value="pending_review">Pending Review</option>
+            <option value="awaiting_proof">Waiting Proof</option>
+            <option value="completed">Completed</option>
+            <option value="rejected">Rejected</option>
+          </select>
+
           <select 
             value={filterGame} 
             onChange={(e) => setFilterGame(e.target.value)}
@@ -175,6 +306,13 @@ export default function Admin() {
               <table className="w-full text-left">
                 <thead className="bg-slate-50 border-b border-gray-200">
                   <tr>
+                    <th className="p-4 w-10">
+                      <button onClick={toggleSelectAll} className="text-slate-400 hover:text-blue-600">
+                        {selectedOrders.length === filteredOrders.length && filteredOrders.length > 0 
+                          ? <CheckSquare size={20} className="text-blue-600"/> 
+                          : <Square size={20}/>}
+                      </button>
+                    </th>
                     <th className="p-4 font-semibold text-slate-600">Date</th>
                     <th className="p-4 font-semibold text-slate-600">Player Info</th>
                     <th className="p-4 font-semibold text-slate-600">Details</th>
@@ -184,117 +322,112 @@ export default function Admin() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredOrders.map((order) => (
-                    <tr key={order.id} className={`hover:bg-gray-50 transition-colors ${order.status === 'pending_review' ? 'bg-orange-50/60' : ''}`}>
-                      <td className="p-4 text-sm text-slate-500 whitespace-nowrap">
-                        {order.createdAt?.seconds 
-                          ? new Date(order.createdAt.seconds * 1000).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) 
-                          : 'Just now'}
-                      </td>
-                      <td className="p-4">
-                        {/* GAME BADGE */}
-                        {order.game && (
-                          <div className={`text-[10px] font-bold px-2 py-0.5 rounded w-fit mb-1 text-white ${
-                            order.game === 'Free Fire' ? 'bg-blue-500' :
-                            order.game === 'PUBG Mobile' ? 'bg-amber-500' :
-                            order.game === 'Mobile Legends' ? 'bg-purple-500' :
-                            'bg-red-500'
-                          }`}>
-                            {order.game}
+                  {filteredOrders.map((order) => {
+                    const isSelected = selectedOrders.includes(order.id);
+                    return (
+                      <tr 
+                        key={order.id} 
+                        className={`transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'} ${order.status === 'pending_review' && !isSelected ? 'bg-orange-50/60' : ''}`}
+                      >
+                        <td className="p-4">
+                          <button onClick={() => toggleSelectOrder(order.id)} className="text-slate-400 hover:text-blue-600">
+                            {isSelected ? <CheckSquare size={20} className="text-blue-600"/> : <Square size={20}/>}
+                          </button>
+                        </td>
+                        <td className="p-4 text-sm text-slate-500 whitespace-nowrap">
+                          {order.createdAt?.seconds 
+                            ? new Date(order.createdAt.seconds * 1000).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) 
+                            : 'Just now'}
+                        </td>
+                        <td className="p-4">
+                          {order.game && (
+                            <div className={`text-[10px] font-bold px-2 py-0.5 rounded w-fit mb-1 text-white ${
+                              order.game === 'Free Fire' ? 'bg-blue-500' :
+                              order.game === 'PUBG Mobile' ? 'bg-amber-500' :
+                              order.game === 'Mobile Legends' ? 'bg-purple-500' :
+                              'bg-red-500'
+                            }`}>
+                              {order.game}
+                            </div>
+                          )}
+                          <div 
+                            onClick={() => copyToClipboard(order.fullPlayerID || order.playerID)}
+                            className="font-mono font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 cursor-pointer inline-flex items-center gap-2 px-2 py-1 rounded mb-1 shadow-sm border border-slate-200"
+                          >
+                            {order.fullPlayerID || order.playerID} <Copy size={12} className="text-slate-400" />
                           </div>
-                        )}
-
-                        <div 
-                          onClick={() => copyToClipboard(order.fullPlayerID || order.playerID)}
-                          className="font-mono font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 hover:scale-105 transition-all cursor-pointer inline-flex items-center gap-2 px-2 py-1 rounded mb-1 shadow-sm border border-slate-200"
-                          title="Click to copy ID"
-                        >
-                          {order.fullPlayerID || order.playerID} <Copy size={12} className="text-slate-400" />
-                        </div>
-
-                        {order.playerName && <div className="text-xs text-slate-500">Name: {order.playerName}</div>}
-                        <a href={`tel:${order.phone}`} className="flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
-                          <Phone size={12}/> {order.phone}
-                        </a>
-                      </td>
-                      <td className="p-4">
-                        {/* --- FIXED: DISPLAY ALL ITEMS IN CART --- */}
-                        {order.items && order.items.length > 0 ? (
-                          <div className="space-y-1">
-                            {order.items.map((item, index) => (
-                              <div key={index} className="text-sm font-bold text-slate-700 border-b border-gray-100 pb-1 last:border-0">
-                                <span className="text-orange-600 mr-1">{item.quantity}x</span>
-                                {item.name ? (
-                                  <span>{item.name}</span>
-                                ) : (
-                                  <span>{item.total} {item.currency || 'Diamonds'}</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          // Fallback for old orders before multi-item support
-                          <div className="font-bold text-orange-600">{order.totalDiamonds} Diamonds</div>
-                        )}
-
-                        <div className="text-xs text-slate-500 mt-2 pt-1 border-t border-gray-200 font-bold">
-                          Total: {order.totalPrice.toLocaleString()} Ar
-                        </div>
-                        
-                        <span className={`text-[10px] font-bold px-1 py-0.5 rounded uppercase mt-1 inline-block ${
-                          order.paymentMethod === 'mvola' ? 'bg-yellow-100 text-yellow-800' : 
-                          order.paymentMethod === 'orange' ? 'bg-orange-100 text-orange-800' : 
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {order.paymentMethod}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                         {order.proofType === 'image' ? (
-                            <a href={order.proofValue} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-blue-600 font-bold hover:underline bg-blue-50 px-2 py-1 rounded w-fit">
-                              <ImageIcon size={16} /> View Image
-                            </a>
-                          ) : order.proofType === 'ref' ? (
-                            <div className="flex items-center gap-2 text-slate-700 font-mono bg-slate-100 px-2 py-1 rounded w-fit">
-                              <FileText size={16} /> {order.proofValue}
+                          {order.playerName && <div className="text-xs text-slate-500">Name: {order.playerName}</div>}
+                          <a href={`tel:${order.phone}`} className="flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
+                            <Phone size={12}/> {order.phone}
+                          </a>
+                        </td>
+                        <td className="p-4">
+                          {order.items && order.items.length > 0 ? (
+                            <div className="space-y-1">
+                              {order.items.map((item, index) => (
+                                <div key={index} className="text-sm font-bold text-slate-700 border-b border-gray-100 pb-1 last:border-0">
+                                  <span className="text-orange-600 mr-1">{item.quantity}x</span>
+                                  {item.name ? <span>{item.name}</span> : <span>{item.total} {item.currency || 'Diamonds'}</span>}
+                                </div>
+                              ))}
                             </div>
                           ) : (
-                            <span className="text-gray-400 text-xs italic">No Proof</span>
+                            <div className="font-bold text-orange-600">{order.totalDiamonds} Diamonds</div>
                           )}
-                      </td>
-                      <td className="p-4">
-                         <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                          order.status === 'completed' ? 'bg-green-100 text-green-700' : 
-                          order.status === 'rejected' ? 'bg-red-100 text-red-700' : 
-                          order.status === 'pending_review' ? 'bg-orange-100 text-orange-700' :
-                          'bg-gray-100 text-gray-500'
-                        }`}>
-                          {order.status === 'awaiting_proof' ? 'Waiting' : order.status.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex gap-2">
-                          {(order.status === 'pending_review' || order.status === 'pending') && (
-                            <>
-                              <button onClick={() => updateStatus(order.id, 'completed', order.phone)} className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg shadow-sm transition-all" title="Approve & Send SMS">
-                                <Check size={18} />
-                              </button>
-                              <button onClick={() => updateStatus(order.id, 'rejected')} className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg shadow-sm transition-all" title="Reject">
-                                <X size={18} />
-                              </button>
-                            </>
-                          )}
-                          <button onClick={() => deleteOrder(order.id)} className="bg-gray-200 hover:bg-red-100 hover:text-red-600 text-gray-500 p-2 rounded-lg shadow-sm transition-all" title="Delete Order">
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          <div className="text-xs text-slate-500 mt-2 pt-1 border-t border-gray-200 font-bold">
+                            Total: {order.totalPrice.toLocaleString()} Ar
+                          </div>
+                          <span className={`text-[10px] font-bold px-1 py-0.5 rounded uppercase mt-1 inline-block ${
+                            order.paymentMethod === 'mvola' ? 'bg-yellow-100 text-yellow-800' : 
+                            order.paymentMethod === 'orange' ? 'bg-orange-100 text-orange-800' : 
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {order.paymentMethod}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                            {order.proofType === 'image' ? (
+                              <a href={order.proofValue} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-blue-600 font-bold hover:underline bg-blue-50 px-2 py-1 rounded w-fit">
+                                <ImageIcon size={16} /> View Image
+                              </a>
+                            ) : order.proofType === 'ref' ? (
+                              <div className="flex items-center gap-2 text-slate-700 font-mono bg-slate-100 px-2 py-1 rounded w-fit">
+                                <FileText size={16} /> {order.proofValue}
+                              </div>
+                            ) : <span className="text-gray-400 text-xs italic">No Proof</span>}
+                        </td>
+                        <td className="p-4">
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                            order.status === 'completed' ? 'bg-green-100 text-green-700' : 
+                            order.status === 'rejected' ? 'bg-red-100 text-red-700' : 
+                            order.status === 'pending_review' ? 'bg-orange-100 text-orange-700' :
+                            'bg-gray-100 text-gray-500'
+                          }`}>
+                            {order.status === 'awaiting_proof' ? 'Waiting' : order.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex gap-2">
+                            {(order.status === 'pending_review' || order.status === 'pending') && (
+                              <>
+                                <button onClick={() => updateStatus(order.id, 'completed', order.phone)} className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg shadow-sm">
+                                  <Check size={18} />
+                                </button>
+                                <button onClick={() => updateStatus(order.id, 'rejected')} className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg shadow-sm">
+                                  <X size={18} />
+                                </button>
+                              </>
+                            )}
+                            <button onClick={() => deleteOrder(order.id)} className="bg-gray-200 hover:bg-red-100 hover:text-red-600 text-gray-500 p-2 rounded-lg shadow-sm">
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {filteredOrders.length === 0 && (
-                    <tr>
-                      <td colSpan="6" className="p-8 text-center text-gray-400">No orders found matching filter.</td>
-                    </tr>
+                    <tr><td colSpan="7" className="p-8 text-center text-gray-400">No orders found matching filter.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -302,6 +435,20 @@ export default function Admin() {
           </div>
         )}
       </div>
+
+      {/* --- FLOATING BULK ACTIONS BAR --- */}
+      {selectedOrders.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white border border-gray-200 shadow-2xl rounded-full px-6 py-3 flex items-center gap-6 z-50 animate-in slide-in-from-bottom-10 fade-in">
+          <div className="font-bold text-slate-700">{selectedOrders.length} selected</div>
+          <div className="h-6 w-px bg-gray-300"></div>
+          <button onClick={bulkDelete} className="flex items-center gap-2 text-red-600 font-bold hover:bg-red-50 px-3 py-1 rounded-lg transition-colors">
+            <Trash2 size={18} /> Delete Selected
+          </button>
+          <button onClick={() => setSelectedOrders([])} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
