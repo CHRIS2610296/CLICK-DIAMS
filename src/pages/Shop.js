@@ -2,12 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   ShoppingCart, Zap, Phone, X, Check, Loader2, ChevronLeft, AlertCircle,
   Facebook, MessageCircle, Copy, Moon, Sun, ShieldCheck, Lock,
-  Plus, Minus
+  Plus, Minus, TrendingUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig';
-// --- ADDED: onSnapshot to imports ---
-import { collection, addDoc, serverTimestamp, doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, onSnapshot, query, orderBy, limit, where } from 'firebase/firestore';
 
 // --- IMPORT YOUR GAMES HERE ---
 import { FreeFire } from '../games/FreeFire';
@@ -20,6 +19,67 @@ const GAMES = {
   pubg: Pubg,
   mlbb: MobileLegends,
   bs: BloodStrike
+};
+
+// --- SALES TICKER COMPONENT ---
+const SalesTicker = ({ isDarkMode }) => {
+  const [recentSales, setRecentSales] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "orders"),
+      where("status", "==", "completed"),
+      orderBy("createdAt", "desc"),
+      limit(10)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const sales = snapshot.docs
+        .map(doc => doc.data())
+        .filter(data => data.playerName)
+        .map(data => ({
+          name: data.playerName,
+          item: data.items && data.items[0] ? (data.items[0].name || `${data.items[0].total} Diamonds`) : 'Diamonds',
+        }));
+      setRecentSales(sales);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (recentSales.length === 0) return;
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % recentSales.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [recentSales]);
+
+  if (recentSales.length === 0) return null;
+
+  const sale = recentSales[currentIndex];
+
+  return (
+    <div className="flex justify-center mb-6">
+      <AnimatePresence mode='wait'>
+        <motion.div
+          key={currentIndex}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold shadow-sm border ${isDarkMode
+              ? 'bg-slate-900 border-slate-700 text-blue-400'
+              : 'bg-white border-blue-100 text-blue-600'
+            }`}
+        >
+          <TrendingUp size={14} className="text-green-500" />
+          <span>
+            <span className={isDarkMode ? "text-white" : "text-slate-800"}>{sale.name}</span> <span className="text-orange-500">{sale.item}</span> successfully purchased!✅
+          </span>
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
 };
 
 const Footer = ({ isDarkMode }) => (
@@ -40,7 +100,7 @@ const Footer = ({ isDarkMode }) => (
         </a>
       </div>
       <div className={`text-center mt-8 pt-8 border-t border-dashed ${isDarkMode ? 'border-slate-800' : 'border-gray-100'}`}>
-        <p className="text-xs text-gray-400 font-medium">© 2026 <strong>CLICK DIAMS.  </strong>  All rights reserved.</p>
+        <p className="text-xs text-gray-400 font-medium">© 2026 Click Diams. All rights reserved.</p>
       </div>
     </div>
   </footer>
@@ -68,7 +128,6 @@ export default function Shop() {
   const [isCartAnimating, setIsCartAnimating] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  // --- NEW: STORE STATUS STATE ---
   const [storeStatus, setStoreStatus] = useState(false);
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -87,7 +146,6 @@ export default function Shop() {
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
-  // --- NEW: LISTEN TO STORE STATUS ---
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "config", "storeStatus"), (doc) => {
       if (doc.exists()) setStoreStatus(doc.data().online);
@@ -138,7 +196,6 @@ export default function Shop() {
     setTimeout(() => setToast(null), 2000);
   };
 
-  // --- UPDATE QUANTITY FUNCTION ---
   const updateQuantity = (itemId, change) => {
     setCart(prev => prev.map(item => {
       if (item.id === itemId) {
@@ -192,12 +249,16 @@ export default function Shop() {
     } catch (error) { setToast({ message: "Network Error", type: "error" }); } finally { setIsProcessing(false); }
   };
 
+  // --- MODIFIED FUNCTION: UPDATES TIME ON SUBMISSION ---
   const handleSubmitProof = async () => {
     if (!refNumber) return setToast({ message: "Enter Reference", type: 'error' });
     setIsUploading(true);
     try {
       await updateDoc(doc(db, "orders", lastOrder.id), {
-        proofType: 'ref', proofValue: refNumber, status: 'pending_review'
+        proofType: 'ref',
+        proofValue: refNumber,
+        status: 'pending_review',
+        createdAt: serverTimestamp() // <--- THIS MOVES ORDER TO TOP OF LIST
       });
       localStorage.removeItem('ff_pending_order');
       setView('finish');
@@ -232,11 +293,10 @@ export default function Shop() {
               <div>
                 <h1 className={`text-xl font-black italic ${theme.text}`}>CLICK <span className="text-blue-600">DIAMS</span></h1>
 
-                {/* --- NEW: ONLINE STATUS INDICATOR --- */}
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <div className={`w-2 h-2 rounded-full ${storeStatus ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
                   <p className={`text-[10px] font-bold tracking-widest ${storeStatus ? 'text-green-500' : 'text-red-400'}`}>
-                    {storeStatus ? "ADMIN ONLINE" : " ADMIN OFFLINE"}
+                    {storeStatus ? "ADMIN ONLINE" : "OFFLINE"}
                   </p>
                 </div>
               </div>
@@ -258,6 +318,8 @@ export default function Shop() {
         <div className="max-w-7xl mx-auto px-4 py-10 flex-1 w-full">
           <h2 className={`text-3xl font-black mb-2 ${theme.text}`}>Select Game</h2>
           <p className={`${theme.subText} mb-8`}>Choose a game to top-up instantly.</p>
+
+          <SalesTicker isDarkMode={isDarkMode} />
 
           {loadingGame ? (
             <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={48} /></div>
@@ -293,77 +355,73 @@ export default function Shop() {
   }
 
   if (view === "payment" && lastOrder) {
-  const paymentInfo = {
-    mvola: { 
-      name: "MVola", 
-      number: "038 74 226 37",
-      names: "Jean Charles", 
-      color: "bg-green-50 text-green-700 border-green-200" 
-    },
-    orange: { 
-      name: "Orange Money", 
-      number: "037 33 073 23",
-      names: "Faniloniaina Christian", 
-      color: "bg-orange-50 text-orange-700 border-orange-200" 
-    },
-    airtel: { 
-      name: "Airtel Money", 
-      number: "033 24 322 07",
-      names: "Faniloniaina Christian", 
-      color: "bg-red-50 text-red-700 border-red-200" 
-    }
-  };
+    const paymentInfo = {
+      mvola: {
+        name: "MVola",
+        number: "038 74 226 37",
+        names: "Jean Charles",
+        color: "bg-green-50 text-green-700 border-green-200"
+      },
+      orange: {
+        name: "Orange Money",
+        number: "037 33 073 23",
+        names: "Faniloniaina Christian",
+        color: "bg-orange-50 text-orange-700 border-orange-200"
+      },
+      airtel: {
+        name: "Airtel Money",
+        number: "033 24 322 07",
+        names: "Faniloniaina Christian",
+        color: "bg-red-50 text-red-700 border-red-200"
+      }
+    };
 
-  const currentPay = paymentInfo[lastOrder.paymentMethod];
+    const currentPay = paymentInfo[lastOrder.paymentMethod];
 
-  return (
-    <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-300 ${theme.bg}`}>
-      <div className={`rounded-3xl shadow-xl max-w-md w-full overflow-hidden ${isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-white"}`}>
-        
-        <div className="bg-blue-900 p-6 text-white text-center">
-          <h2 className="text-2xl font-bold">Payment Required</h2>
-          <p className="opacity-80 text-sm">Order #{lastOrder.id.slice(0,6)}</p>
-        </div>
+    return (
+      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-300 ${theme.bg}`}>
+        <div className={`rounded-3xl shadow-xl max-w-md w-full overflow-hidden ${isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-white"}`}>
 
-        <div className="p-6">
-          <div className="text-center mb-6">
-            <p className={`text-xs uppercase tracking-wide ${theme.subText}`}>VOLA ALEFA</p>
-            <p className={`text-3xl font-black ${theme.text}`}>
-              {lastOrder.totalPrice.toLocaleString()} Ar
-            </p>
+          <div className="bg-blue-900 p-6 text-white text-center">
+            <h2 className="text-2xl font-bold">Payment Required</h2>
+            <p className="opacity-80 text-sm">Order #{lastOrder.id.slice(0, 6)}</p>
+          </div>
 
-            <div className={`border rounded-xl p-4 mt-4 relative ${isDarkMode ? "bg-slate-800 border-slate-700" : currentPay.color}`}>
-
-              <p className={`text-xs font-bold uppercase tracking-wider opacity-80`}>
-                Send via {currentPay.name}
+          <div className="p-6">
+            <div className="text-center mb-6">
+              <p className={`text-xs uppercase tracking-wide ${theme.subText}`}>VOLA ALEFA</p>
+              <p className={`text-3xl font-black ${theme.text}`}>
+                {lastOrder.totalPrice.toLocaleString()} Ar
               </p>
 
-              <div
-                onClick={() => copyToClipboard(currentPay.number)}
-                className={`mt-2 px-4 py-2 text-2xl font-black tracking-widest rounded-lg cursor-pointer
+              <div className={`border rounded-xl p-4 mt-4 relative ${isDarkMode ? "bg-slate-800 border-slate-700" : currentPay.color}`}>
+
+                <p className={`text-xs font-bold uppercase tracking-wider opacity-80`}>
+                  Send via {currentPay.name}
+                </p>
+
+                <div
+                  onClick={() => copyToClipboard(currentPay.number)}
+                  className={`mt-2 px-4 py-2 text-2xl font-black tracking-widest rounded-lg cursor-pointer
                             flex items-center justify-center gap-2
                             transition-all duration-200 shadow-sm
                             hover:opacity-80 ${currentPay.color}`}
-                title="Click to copy"
-              >
-                {currentPay.number}
-                <Copy size={16} />
-              </div>
+                  title="Click to copy"
+                >
+                  {currentPay.number}
+                  <Copy size={16} />
+                </div>
 
-              <div className="w-full h-px bg-current opacity-40 my-3"></div>
+                <div className="w-full h-px bg-current opacity-40 my-3"></div>
 
-              <p
-                className={`mt-2 px-4 py-2 text-xl font-black tracking-widest rounded-lg
+                <p
+                  className={`mt-2 px-4 py-2 text-xl font-black tracking-widest rounded-lg
                             flex items-center justify-center gap-2
                             transition-all duration-200 shadow-sm
                             hover:opacity-80 ${currentPay.color}`}
-              >
-                Anarana: <span className="font-bold">{currentPay.names}</span>
-              </p>
-
-
-     
-
+                >
+                  Name: <span className="font-bold">{currentPay.names}</span>
+                </p>
 
               </div>
             </div>
@@ -409,11 +467,10 @@ export default function Shop() {
             </div>
             <div>
               <h1 className={`text-lg font-black italic leading-none ${theme.text}`}>CLICK <span className="text-blue-600">DIAMS</span></h1>
-              {/* --- NEW: ONLINE STATUS INDICATOR --- */}
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div className={`w-2 h-2 rounded-full ${storeStatus ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
                 <p className={`text-[10px] font-bold tracking-widest ${storeStatus ? 'text-green-500' : 'text-red-400'}`}>
-                  {storeStatus ? "ADMIN ONLINE" : "ADMIN OFFLINE"}
+                  {storeStatus ? "ADMIN ONLINE" : "OFFLINE"}
                 </p>
               </div>
             </div>
@@ -443,7 +500,7 @@ export default function Shop() {
               Official {activeGame.name} Top Up
             </div>
             <h2 className="text-4xl font-black text-white leading-tight mb-1">{activeGame.name}</h2>
-            <p className="text-gray-300 text-sm">Instant delivery. No login required.</p>
+            <p className="text-gray-300 text-sm">Instant delivery. Only Via UID No login required.</p>
           </div>
         </div>
       </div>
@@ -511,7 +568,7 @@ export default function Shop() {
                         <div className={`text-xs ${theme.subText}`}>{item.price.toLocaleString()} Ar</div>
                       </div>
                     </div>
-                    {/* --- NEW: QUANTITY CONTROLS WITH PLUS/MINUS --- */}
+                    {/* QUANTITY CONTROLS */}
                     <div className="flex flex-col items-end gap-1">
                       <span className={`font-bold ${theme.text}`}>{(item.price * item.quantity).toLocaleString()}</span>
                       <div className={`flex items-center gap-2 rounded-lg p-1 ${isDarkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
@@ -551,14 +608,14 @@ export default function Shop() {
 
                     <input
                       type="text"
-                      placeholder={idVerified ? "Name Verified" : "Username"}
+                      placeholder={idVerified ? "Name Verified" : "Username* (pseudo in-game)"}
                       className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 ${theme.input} ${idVerified ? 'border-green-500 text-green-600 font-bold bg-green-50/10' : ''}`}
                       value={formData.playerName}
                       readOnly={idVerified}
                       onChange={e => setFormData({ ...formData, playerName: e.target.value })}
                     />
 
-                    <input type="tel" placeholder="Phone Number (03x...)" className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 ${theme.input}`} value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                    <input type="tel" placeholder="Numero MG anao ( oh: 03x...)" className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 ${theme.input}`} value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
 
                     <div className="grid grid-cols-3 gap-2">
                       <button onClick={() => setFormData({ ...formData, paymentMethod: 'mvola' })} className={`p-2 rounded-xl border-2 font-bold text-xs ${formData.paymentMethod === 'mvola' ? 'border-green-500 bg-green-500/10 text-green-500' : 'border-gray-200 text-gray-400'}`}>MVola</button>
