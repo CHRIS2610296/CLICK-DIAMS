@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard, LogOut, Check, X, Loader2, Phone, FileText, Image as ImageIcon, Trash2, Copy, Filter, Square, CheckSquare,
   ChevronDown, ChevronUp, Calendar, BarChart3, TrendingUp, ShoppingBag, AlertCircle, CheckCircle, Clock, XCircle,
-  Download, Upload, Settings, Bell, Search, MoreVertical, Eye, EyeOff, Edit, DollarSign, Users, Package, CreditCard
+  Download, Upload, Settings, Bell, Search, MoreVertical, Eye, EyeOff, Edit, DollarSign, Users, Package, CreditCard, Gamepad2, Save
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, setDoc, getDoc } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, Area, AreaChart } from 'recharts';
 
 export default function Admin() {
@@ -23,7 +23,11 @@ export default function Admin() {
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [isOnline, setIsOnline] = useState(false);
   const [showChart, setShowChart] = useState(true);
-  const [showRevenue, setShowRevenue] = useState(false); // <--- NEW: Defaults to HIDDEN
+  const [showRevenue, setShowRevenue] = useState(false);
+
+  // --- ROOM EVENT STATES ---
+  const [roomData, setRoomData] = useState({ isActive: false, roomId: '', roomPass: '' });
+  const [isSavingRoom, setIsSavingRoom] = useState(false);
 
   // --- CHART TIME RANGE STATE ---
   const [chartRange, setChartRange] = useState('week');
@@ -74,6 +78,35 @@ export default function Admin() {
     });
     return () => unsub();
   }, []);
+
+  // 3. Room Event Listener
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "config", "freefireRoom"), (doc) => {
+      if (doc.exists()) {
+        setRoomData(doc.data());
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // --- ROOM MANAGEMENT LOGIC ---
+  const saveRoomSettings = async (newStatus = null) => {
+    setIsSavingRoom(true);
+    try {
+      const dataToSave = {
+        ...roomData,
+        // If newStatus is provided (true/false), use it. Otherwise use current roomData.isActive
+        isActive: newStatus !== null ? newStatus : roomData.isActive 
+      };
+      
+      await setDoc(doc(db, "config", "freefireRoom"), dataToSave);
+      // Optional: alert("Room updated!");
+    } catch (error) {
+      alert("Error saving room: " + error.message);
+    } finally {
+      setIsSavingRoom(false);
+    }
+  };
 
   // --- CHART DATA LOGIC ---
   const getChartData = () => {
@@ -263,7 +296,7 @@ export default function Admin() {
           </div>
         </div>
 
-        {/* Enhanced Stats Cards */}
+        {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
           <div className="bg-gradient-to-br from-white to-blue-50 p-6 rounded-2xl shadow-lg border border-blue-100 group hover:shadow-xl transition-shadow">
             <div className="flex items-center justify-between mb-4">
@@ -287,7 +320,7 @@ export default function Admin() {
             <div className="text-3xl font-bold text-emerald-700 mt-2">{completedCount}</div>
           </div>
 
-          {/* --- MODIFIED: TOTAL REVENUE CARD (With Eye Toggle) --- */}
+          {/* TOTAL REVENUE CARD */}
           <div className="bg-gradient-to-br from-white to-purple-50 p-6 rounded-2xl shadow-lg border border-purple-100 group hover:shadow-xl transition-shadow relative">
             <div className="flex items-center justify-between mb-4">
               <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl">
@@ -316,6 +349,72 @@ export default function Admin() {
             </div>
             <div className="text-slate-500 text-sm font-medium">Total Orders</div>
             <div className="text-3xl font-bold text-slate-800 mt-2">{orders.length}</div>
+          </div>
+        </div>
+
+        {/* --- NEW: LIVE EVENT MANAGER CARD --- */}
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 mb-8 p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className={`p-2.5 rounded-lg ${roomData.isActive ? 'bg-red-600 animate-pulse' : 'bg-slate-700'}`}>
+              <Gamepad2 className="text-white" size={22} />
+            </div>
+            <div>
+              <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                Live Event Manager 
+                {roomData.isActive && <span className="bg-red-100 text-red-600 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-black border border-red-200">Live Now</span>}
+              </h2>
+              <p className="text-sm text-slate-500">Manage Free Fire custom room details here.</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-4 items-end">
+            <div className="flex-1 w-full space-y-1">
+              <label className="text-xs font-bold text-slate-500 uppercase">Room ID</label>
+              <input 
+                type="text" 
+                value={roomData.roomId}
+                onChange={(e) => setRoomData({ ...roomData, roomId: e.target.value })}
+                className="w-full p-3 border border-slate-300 rounded-xl font-mono font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="e.g. 1234567"
+              />
+            </div>
+            <div className="flex-1 w-full space-y-1">
+              <label className="text-xs font-bold text-slate-500 uppercase">Password (MDP)</label>
+              <input 
+                type="text" 
+                value={roomData.roomPass}
+                onChange={(e) => setRoomData({ ...roomData, roomPass: e.target.value })}
+                className="w-full p-3 border border-slate-300 rounded-xl font-mono font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="e.g. 1234"
+              />
+            </div>
+            
+            <div className="flex gap-2 w-full md:w-auto">
+              <button 
+                onClick={() => saveRoomSettings()}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-3 rounded-xl transition-colors"
+                disabled={isSavingRoom}
+              >
+                {isSavingRoom ? <Loader2 className="animate-spin" size={18}/> : <Save size={18} />}
+                Update
+              </button>
+
+              {roomData.isActive ? (
+                <button 
+                  onClick={() => saveRoomSettings(false)}
+                  className="flex-1 md:flex-none bg-red-500 hover:bg-red-600 text-white font-bold px-6 py-3 rounded-xl shadow-lg shadow-red-200 transition-all flex items-center justify-center gap-2"
+                >
+                  <XCircle size={18} /> STOP EVENT
+                </button>
+              ) : (
+                <button 
+                  onClick={() => saveRoomSettings(true)}
+                  className="flex-1 md:flex-none bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-3 rounded-xl shadow-lg shadow-green-200 transition-all flex items-center justify-center gap-2 animate-pulse"
+                >
+                  <CheckCircle size={18} /> GO LIVE
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -419,6 +518,8 @@ export default function Admin() {
                 <option value="PUBG Mobile">PUBG Mobile</option>
                 <option value="Mobile Legends">Mobile Legends</option>
                 <option value="Blood Strike">Blood Strike</option>
+                <option value="Genshin Impact">Genshin Impact</option>
+                <option value="Arena Breakout">Arena Breakout</option>
               </select>
 
               <select
@@ -534,11 +635,14 @@ export default function Admin() {
                           <div className="flex flex-col gap-2">
                             <div className="flex items-center gap-2">
                               {order.game && (
-                                <span className={`text-xs font-bold px-2 py-1 rounded-full capitalize ${order.game === 'Free Fire' ? 'bg-blue-100 text-blue-700' :
-                                    order.game === 'PUBG Mobile' ? 'bg-amber-100 text-amber-700' :
-                                      order.game === 'Mobile Legends' ? 'bg-purple-100 text-purple-700' :
-                                        'bg-red-100 text-red-700'
-                                  }`}>
+                                <span className={`text-xs font-bold px-2 py-1 rounded-full capitalize ${
+                                  order.game === 'Free Fire' ? 'bg-blue-100 text-blue-700' :
+                                  order.game === 'PUBG Mobile' ? 'bg-amber-100 text-amber-700' :
+                                  order.game === 'Mobile Legends' ? 'bg-purple-100 text-purple-700' :
+                                  order.game === 'Genshin Impact' ? 'bg-pink-100 text-pink-700' :
+                                  order.game === 'Arena Breakout' ? 'bg-stone-100 text-stone-700' :
+                                  'bg-red-100 text-red-700'
+                                }`}>
                                   {order.game}
                                 </span>
                               )}

@@ -1,17 +1,22 @@
+import bg from '../images/ar.jpg';
 export const ArenaBreakout = {
   id: 'ab',
   name: 'Arena Breakout',
-  bg: 'https://wallpapers.com/images/hd/arena-breakout-1920-x-1080-wallpaper-h579998895999555.jpg', 
+  bg,
   currency: 'Bonds',
   labelID: 'Player ID',
-  needZone: false, // Usually just Player ID is enough
+  needZone: false, // Usually only Player ID is needed
   packages: [
-    { id: 'ab_1', total: 60, price: 4500 },
-    { id: 'ab_2', total: 310, price: 22000, tag: "POPULAR" },
-    { id: 'ab_3', total: 630, price: 44000 },
-    { id: 'ab_4', total: 1300, price: 88000 },
-    { id: 'ab_5', total: 3200, price: 215000 },
-    { id: 'ab_6', total: 6500, price: 430000 },
-    { id: 'ab_pass', name: "Battle Pass", total: 1, price: 45000, tag: "PASS" }
+    // --- BATTLE PASS ---
+    { id: 'ab_pass', name: "Battle Pass (Standard)", total: 1, price: 17400, tag: "HOT" },
+    { id: 'ab_pass_prem', name: "Battle Pass (Premium)", total: 1, price: 34000, tag: "PREMIUM" },
+
+    // --- BONDS PACKAGES ---
+    { id: 'ab_60', total: 60, price: 3400 },
+    { id: 'ab_310', total: 310, price: 17500, tag: "POPULAR" },
+    { id: 'ab_630', total: 630, price: 35600 },
+    { id: 'ab_1300', total: 1300, price: 73500 },
+    { id: 'ab_3200', total: 3200, price: 180000 },
+    { id: 'ab_6500', total: 6500, price: 367000, tag: "BEST VALUE" }
   ]
 };
