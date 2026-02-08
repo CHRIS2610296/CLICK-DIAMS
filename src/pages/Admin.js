@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import clicksound  from '../sounds/not.mp3';
 import {
   LayoutDashboard, LogOut, Check, X, Loader2, Phone, FileText, Image as ImageIcon, Trash2, Copy, Filter, Square, CheckSquare,
   ChevronDown, ChevronUp, Calendar, BarChart3, TrendingUp, ShoppingBag, AlertCircle, CheckCircle, Clock, XCircle,
@@ -8,6 +9,7 @@ import { signOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, setDoc, getDoc } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, Area, AreaChart } from 'recharts';
+import { click } from '@testing-library/user-event/dist/click';
 
 export default function Admin() {
   const [orders, setOrders] = useState([]);
@@ -32,7 +34,7 @@ export default function Admin() {
   // --- CHART TIME RANGE STATE ---
   const [chartRange, setChartRange] = useState('week');
 
-  const audioRef = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
+  const audioRef = useRef(new Audio(clicksound));
   const isFirstLoad = useRef(true);
 
   // Logout Handler

@@ -3,6 +3,7 @@ export const ArenaBreakout = {
   id: 'ab',
   name: 'Arena Breakout',
   bg,
+ 
   currency: 'Bonds',
   labelID: 'Player ID',
   needZone: false, // Usually only Player ID is needed

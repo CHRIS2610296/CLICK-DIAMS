@@ -1,5 +1,5 @@
 import bg from "../images/free-fire.jpg"; 
-
+import bgcard from "../images/ff.jpg";
 export const FreeFire = {
   id: 'ff',
   name: "Free Fire",
@@ -7,6 +7,7 @@ export const FreeFire = {
   labelID: "Player ID",
   needZone: false,
   bg,
+  bgcard,
   packages: [
     // Small Packs
     { id: 'ff_1', total: 110, base: 100, bonus: 10, price: 4550 , tag: "CHEAPEST"},

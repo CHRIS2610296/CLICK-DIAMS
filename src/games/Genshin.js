@@ -4,7 +4,7 @@ export const Genshin = {
   id: 'genshin',
   name: 'Genshin Impact',
   bg,
-  currency: 'Genesis Crystals',
+  currency: 'Genesis Crystals, Chronal Nexus',
   labelID: 'UID',
   needZone: true, // Requires Server/Zone selection
   categories: ['Standard', 'Chronal Nexus'], // The tabs
