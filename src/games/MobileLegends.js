@@ -1,3 +1,4 @@
+import { tag } from "lucide-react";
 import bg from "../images/mobile-legends-bang-bang-logo-art-aatmalhs88j27tpj.jpg";
 
 export const MobileLegends = {
@@ -9,14 +10,16 @@ export const MobileLegends = {
   bg,
   packages: [
     { id: "ml_1", name: "55 Diamonds", total: 55, base: 55, bonus: 0, price: 3700 },
-    { id: "ml_2", name: "Super Value Pass", total: 0, base: 0, bonus: 0, price: 3700 },
+    { id: "ml_2", name: "Super Value Pass", total: 0, base: 0, bonus: 0, price: 3700, tag: "PASS" },
+    { id: "ml_2a", name: "Weekly Elite Pack", total: 0, base: 0, bonus: 0, price: 3900, tag: "PACK" },
     { id: "ml_3", name: "86 Diamonds", total: 86, base: 86, bonus: 0, price: 5800 },
-    { id: "ml_4", name: "Weekly Pass", total: 0, base: 0, bonus: 0, price: 7100 },
+    { id: "ml_4", name: "Weekly Pass", total: 0, base: 0, bonus: 0, price: 7100, tag: "PASS" },
 
     { id: "ml_5", total: 165, base: 150, bonus: 15, price: 10900 },
     { id: "ml_6", total: 172, base: 160, bonus: 12, price: 11400 },
     { id: "ml_7", total: 257, base: 240, bonus: 17, price: 16400 },
     { id: "ml_8", total: 275, base: 260, bonus: 15, price: 17600 },
+    { id: "ml_42", name: "Monthly Elite Pack", total: 0, base: 0, bonus: 0, price: 18800, tag: "PACK" },
     { id: "ml_9", total: 343, base: 320, bonus: 23, price: 22100 },
     { id: "ml_10", total: 344, base: 330, bonus: 14, price: 22900 },
 
@@ -25,7 +28,7 @@ export const MobileLegends = {
     { id: "ml_13", total: 514, base: 480, bonus: 34, price: 32800 },
     { id: "ml_14", total: 516, base: 500, bonus: 16, price: 34300 },
     { id: "ml_15", total: 565, base: 530, bonus: 35, price: 36100 },
-    { id: "ml_16", name: "Twilight Pass", total: 0, base: 0, bonus: 0, price: 37700 },
+    { id: "ml_16", name: "Twilight Pass", total: 0, base: 0, bonus: 0, price: 37700, tag: "PASS" },
 
     { id: "ml_17", total: 600, base: 560, bonus: 40, price: 38600 },
     { id: "ml_18", total: 602, base: 570, bonus: 32, price: 40000 },
@@ -55,5 +58,6 @@ export const MobileLegends = {
     { id: "ml_38", total: 2367, base: 2210, bonus: 157, price: 147600 },
     { id: "ml_39", total: 2453, base: 2290, bonus: 163, price: 153400 },
     { id: "ml_40", total: 2539, base: 2370, bonus: 169, price: 159000 }
+    
   ]
 };
